@@ -72,7 +72,9 @@ Stores global contract parameters.
 * `fee-size`
 * `operator credentials`
 * `listing verification key`
-* Contract-issued asset **CONF** (1 unit)
+
+#### **Assets**
+Contract-issued asset **CONF** (1 unit)
 
 #### **Rules**
 
@@ -134,6 +136,7 @@ Stores global contract parameters.
      * Sell → user locks asset
      * Buy → user locks ADA
    * `policy_id` of the traded asset
+   * `asset_name` of the traded asset
    * Asset amount (base units, without decimal divider)
    * Asset price (base units, without decimal divider)
    * Partial fulfillment allowed (yes / no)
@@ -227,7 +230,7 @@ Cancellation by the order owner or the operator.
 
 ---
 
-### **5. Deal (Order Execution)**
+### **5. Order Execution**
 
 A user accepts an order and executes the trade.
 

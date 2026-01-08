@@ -15,4 +15,23 @@ name = "aiken-lang/stdlib"
 version = "v3.0.0"
 source = "github"
 
-[config]
+[config.default]
+contract_config_marker = "CONF"
+contract_order_marker = "ORDER"
+contract_order_min_ada = 2_000_000
+contract_bootstrap_utxo_index = 0
+
+[config.default.contract_bootstrap_utxo_hash]
+bytes = "94a8c6dd914997d05bc03ec3d550d84ca8b4b9ed965da0f67e31663c"
+encoding = "hex"
+
+
+[config.mainnet]
+contract_config_marker = "CONF"
+contract_order_marker = "ORDER"
+contract_order_min_ada = 2_000_000
+contract_bootstrap_utxo_index = 0
+
+[config.mainnet.contract_bootstrap_utxo_hash]
+bytes = "94a8c6dd914997d05bc03ec3d550d84ca8b4b9ed965da0f67e31663c"
+encoding = "hex"
