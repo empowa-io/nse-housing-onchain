@@ -15,4 +15,8 @@ validator nse_housing {
   ) {
     todo @"spend logic goes here"
   }
+
+  else(_) {
+    fail
+  }
 }

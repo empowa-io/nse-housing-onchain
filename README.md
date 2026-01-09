@@ -69,7 +69,7 @@ Stores global contract parameters.
 
 #### **Datum**
 
-* `fee-size`
+* `fee-size` (from 0 to 10000 which means from 0.00% to 100.00%)
 * `operator credentials`
 * `listing verification key`
 
