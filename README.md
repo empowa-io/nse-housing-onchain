@@ -70,8 +70,9 @@ Stores global contract parameters.
 #### **Datum**
 
 * `fee-size` (from 0 to 10000 which means from 0.00% to 100.00%)
-* `operator credentials`
-* `listing verification key`
+* `operator credentials` - for the operator verification
+* `listing verification key` - for the listings signature verification
+* `is_market_open` - contract's switcher
 
 #### **Assets**
 Contract-issued asset **CONF** (1 unit)
@@ -182,7 +183,20 @@ Initial contract setup.
 
 ---
 
-### **2. Order Placing**
+### **2. Configuration**
+
+Changing contract parameters.
+
+* Mandatory:
+
+  * Configuration structure validation
+  * Current Operator signature
+  * New operator signature if needed
+  * No minting allowed
+
+---
+
+### **3. Order Placing**
 
 User places a new order.
 
@@ -200,7 +214,7 @@ Checks performed:
 
 ---
 
-### **3. Order Changing**
+### **4. Order Changing**
 
 Modification of an existing order.
 
@@ -216,7 +230,7 @@ Differences from Order Placing:
 
 ---
 
-### **4. Order Canceling**
+### **5. Order Canceling**
 
 Cancellation by the order owner or the operator.
 
@@ -230,7 +244,7 @@ Cancellation by the order owner or the operator.
 
 ---
 
-### **5. Order Execution**
+### **6. Order Execution**
 
 A user accepts an order and executes the trade.
 
@@ -246,4 +260,3 @@ A user accepts an order and executes the trade.
 * The accepting user does not lock funds in the contract
 
   * The exchange happens directly within the transaction
-

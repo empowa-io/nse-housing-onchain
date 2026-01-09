@@ -1,4 +1,4 @@
-use cardano/assets.{from_asset, from_lovelace}
+use cardano/assets.{from_asset, from_lovelace, merge}
 use cardano/transaction.{
   InlineDatum, Input, NoDatum, Output, OutputReference, Transaction, placeholder,
 }
@@ -20,9 +20,10 @@ const good_mint = from_asset(contract_policy_id, contract_config_marker, 1)
 
 const good_conf_datum =
   ConfigDatum {
-    fee_size: 1,
+    fee_size: base_fee_size,
     contract_operator_credential: operator_payment_keyhash,
     listing_verification_key,
+    is_market_open: False,
   }
 
 const good_bootstrap_input =
@@ -44,20 +45,23 @@ type BadDatum {
 // Bootstrapping can only be performed once, so we must ensure everything goes through without errors
 // Mostly checks that protect against human error in case the operator makes a mistake
 
-// Successful bootstrap where the operator correctly registers the configuration eUTXO
+// A correct bootstrap transaction must contain:
+//   Inputs [just 1]:
+//     - exactly one input using contract_bootstrap_utxo_hash#contract_bootstrap_utxo_index
+//   Outputs [>= 1]:
+//     - exactly one output to the contract address containing:
+//       - 1 token `contract_policy_id.contract_config_marker`
+//       - a datum of type `ConfigDatum`
+//     - any number of outputs to other addresses if needed
+//   Minting [just 1]:
+//     - exactly one `contract_policy_id.contract_config_marker`
+//   Additional signers:
+//     - a signature corresponding to the `contract_operator_credential` field in the datum
+
+// Validatiors: Minting only
+
 test success_bootstrap() {
-  // A correct bootstrap transaction must contain:
-  //   Inputs:
-  //     - exactly one input using contract_bootstrap_utxo_hash#contract_bootstrap_utxo_index
-  //   Outputs:
-  //     - exactly one output to the contract address containing:
-  //       - 1 token `contract_policy_id.contract_config_marker`
-  //       - a datum of type `ConfigDatum`
-  //     - any number of outputs to other addresses if needed
-  //   Minting:
-  //     - exactly one `contract_policy_id.contract_config_marker`
-  //   Additional signers:
-  //     - a signature corresponding to the `contract_operator_credential` field in the datum
+  // Successful bootstrap where the operator correctly registers the configuration eUTXO
 
   let tx =
     Transaction {
@@ -72,7 +76,7 @@ test success_bootstrap() {
 }
 
 test failed_bootstrap_bad_inputs() fail {
-  // Incorrect bootstrap violating the rule:
+  // Incorrect action violating the rule:
   //   Inputs:
   //     - exactly one input
 
@@ -89,7 +93,7 @@ test failed_bootstrap_bad_inputs() fail {
 }
 
 test failed_bootstrap_bad_bootstrap_utxo_hash() fail {
-  // Incorrect bootstrap violating the rule:
+  // Incorrect action violating the rule:
   //   Inputs:
   //     - exactly one input using contract_bootstrap_utxo_hash
 
@@ -115,7 +119,7 @@ test failed_bootstrap_bad_bootstrap_utxo_hash() fail {
 }
 
 test failed_bootstrap_bad_bootstrap_utxo_index() fail {
-  // Incorrect bootstrap violating the rule:
+  // Incorrect action violating the rule:
   //   Inputs:
   //     - exactly one input using contract_bootstrap_utxo_hash#contract_bootstrap_utxo_index
 
@@ -141,7 +145,7 @@ test failed_bootstrap_bad_bootstrap_utxo_index() fail {
 }
 
 test failed_bootstrap_many_contract_outputs() fail {
-  // Incorrect bootstrap violating the rule:
+  // Incorrect action violating the rule:
   //   Outputs:
   //     - exactly one output to the contract address
 
@@ -157,7 +161,7 @@ test failed_bootstrap_many_contract_outputs() fail {
 }
 
 test failed_bootstrap_no_marker_in_contract_output() fail {
-  // Incorrect bootstrap violating the rule:
+  // Incorrect action violating the rule:
   //   Outputs:
   //   Outputs:
   //     - exactly one output to the contract address containing:
@@ -177,10 +181,9 @@ test failed_bootstrap_no_marker_in_contract_output() fail {
 }
 
 test failed_bootstrap_bad_datum_v1() fail {
-  // Incorrect bootstrap violating the rule:
+  // Incorrect action violating the rule:
   //   Outputs:
   //     - exactly one output to the contract address containing:
-  //       - 1 token `contract_policy_id.contract_config_marker`
   //       - a datum of type `ConfigDatum`
 
   let bad_contract_output = Output { ..good_contract_output, datum: NoDatum }
@@ -198,10 +201,9 @@ test failed_bootstrap_bad_datum_v1() fail {
 }
 
 test failed_bootstrap_bad_datum_v2() fail {
-  // Incorrect bootstrap violating the rule:
+  // Incorrect action violating the rule:
   //   Outputs:
   //     - exactly one output to the contract address containing:
-  //       - 1 token `contract_policy_id.contract_config_marker`
   //       - a datum of type `ConfigDatum`
 
   let bad_contract_output =
@@ -220,7 +222,7 @@ test failed_bootstrap_bad_datum_v2() fail {
 }
 
 test failed_bootstrap_bad_minting_policy_id() fail {
-  // Incorrect bootstrap violating the rule:
+  // Incorrect action violating the rule:
   //   Minting:
   //     - exactly one `contract_policy_id.contract_config_marker`
 
@@ -239,7 +241,7 @@ test failed_bootstrap_bad_minting_policy_id() fail {
 }
 
 test failed_bootstrap_bad_minting_asset_name() fail {
-  // Incorrect bootstrap violating the rule:
+  // Incorrect action violating the rule:
   //   Minting:
   //     - exactly one `contract_policy_id.contract_config_marker`
 
@@ -258,7 +260,7 @@ test failed_bootstrap_bad_minting_asset_name() fail {
 }
 
 test failed_bootstrap_bad_minting_amount() fail {
-  // Incorrect bootstrap violating the rule:
+  // Incorrect action violating the rule:
   //   Minting:
   //     - exactly one `contract_policy_id.contract_config_marker`
 
@@ -276,8 +278,28 @@ test failed_bootstrap_bad_minting_amount() fail {
   nse_housing.nse_housing.mint(Bootstrap, contract_policy_id, tx)
 }
 
-test failed_bootstrap() fail {
-  // Incorrect bootstrap violating the rule:
+test failed_bootstrap_bad_minting_extra_asset() fail {
+  // Incorrect action violating the rule:
+  //   Minting:
+  //     - exactly one `contract_policy_id.contract_config_marker`
+
+  let bad_mint =
+    merge(good_mint, from_asset(contract_policy_id, "wrong asset name", 1))
+
+  let tx =
+    Transaction {
+      ..placeholder,
+      inputs: [good_bootstrap_input],
+      outputs: [good_contract_output, output_placeholder],
+      mint: bad_mint,
+      extra_signatories: [operator_payment_keyhash],
+    }
+
+  nse_housing.nse_housing.mint(Bootstrap, contract_policy_id, tx)
+}
+
+test failed_bootstrap_bad_signature() fail {
+  // Incorrect action violating the rule:
   //   Additional signers:
   //     - a signature corresponding to the `contract_operator_credential` field in the datum
 

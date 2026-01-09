@@ -11,6 +11,4 @@ use default.{
 use nse_housing
 use types.{Bootstrap}
 
-test placeholder() {
-  True
-}
+
