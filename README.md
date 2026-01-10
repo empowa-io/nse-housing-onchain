@@ -101,10 +101,8 @@ Contract-issued asset **CONF** (1 unit)
 
 * `policy_id`
 * `Option<asset_name>`
-
   * `None` means all asset names under the given policy are allowed
-* Signature of the hash of `policy_id + asset_name`
-
+* Signature of sha256(`policy_id` + `asset_name`) or sha256(`policy_id`) if `asset_name` is not specified
   * Verified using the `listing verification key`
 
 #### **Rules**
@@ -207,7 +205,7 @@ Checks performed:
 * Consistency between Datum and transaction outputs
 * Valid listing reference UTXO
 * Valid configuration reference UTXO
-* Valid `timeout` (must not be in the past)
+* Valid `timeout` (must not be in the past, can be qual to zero if not needed)
 * Sufficient ADA for the order placement deposit
 * Transaction signed by the key linked to `user credential`
 * Order output placed at the contract address

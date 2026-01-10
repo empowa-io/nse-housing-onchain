@@ -1,6 +1,7 @@
 use cardano/assets.{from_asset, from_lovelace}
 use cardano/transaction.{
-  InlineDatum, Input, NoDatum, Output, OutputReference, Transaction, placeholder,
+  InlineDatum, Input, NoDatum, Output, OutputReference, Transaction,
+  placeholder as tx_placeholder,
 }
 use config.{
   contract_bootstrap_utxo_hash, contract_bootstrap_utxo_index,
@@ -84,12 +85,12 @@ type BadDatum {
 
 // Validatiors: Spending only
 
-test success_configuration_operator_changed() {
+test success_and_operator_changed() {
   // Successful configureation where the operator correctly changes the configuration eUTXO
   // Needs two extra signatures
   let tx =
     Transaction {
-      ..placeholder,
+      ..tx_placeholder,
       inputs: [good_contract_config_input, input_placeholder],
       outputs: [good_contract_output, output_placeholder],
       extra_signatories: [operator_payment_keyhash, operator_keyhash_new],
@@ -103,12 +104,12 @@ test success_configuration_operator_changed() {
   )
 }
 
-test success_configuration_operator_not_changed() {
+test success_and_operator_not_changed() {
   // Successful configureation where the operator correctly changes the configuration eUTXO
   // Needs Only one signature
   let tx =
     Transaction {
-      ..placeholder,
+      ..tx_placeholder,
       inputs: [good_contract_config_input, input_placeholder],
       outputs: [good_contract_config_input.output, output_placeholder],
       extra_signatories: [operator_payment_keyhash],
@@ -122,7 +123,7 @@ test success_configuration_operator_not_changed() {
   )
 }
 
-test failed_configuration_operator_changed_without_signature() fail {
+test failed_operator_changed_without_signature() fail {
   // Incorrect action violating the rule:
   //   Additional signers:
   //     - a signature corresponding to the `contract_operator_credential` field in the `spent utxo datum`
@@ -134,7 +135,7 @@ test failed_configuration_operator_changed_without_signature() fail {
 
   let tx =
     Transaction {
-      ..placeholder,
+      ..tx_placeholder,
       inputs: [good_contract_config_input, input_placeholder],
       outputs: [good_contract_output, output_placeholder],
       extra_signatories: [operator_payment_keyhash],
@@ -148,7 +149,7 @@ test failed_configuration_operator_changed_without_signature() fail {
   )
 }
 
-test failed_configuration_bad_inputs() fail {
+test failed_bad_inputs() fail {
   // Incorrect action violating the rule:
   //   Inputs:
   //     - exactly one input with `contract_policy_id.contract_config_marker` inside
@@ -157,7 +158,7 @@ test failed_configuration_bad_inputs() fail {
 
   let tx =
     Transaction {
-      ..placeholder,
+      ..tx_placeholder,
       inputs: [bad_input, input_placeholder],
       outputs: [good_contract_config_input.output, output_placeholder],
       extra_signatories: [operator_payment_keyhash],
@@ -171,7 +172,7 @@ test failed_configuration_bad_inputs() fail {
   )
 }
 
-test failed_configuration_bad_outputs() fail {
+test failed_bad_outputs() fail {
   // Incorrect action violating the rule:
   //   Outputs:
   //     - exactly one output to the contract address containing:
@@ -181,7 +182,7 @@ test failed_configuration_bad_outputs() fail {
 
   let tx =
     Transaction {
-      ..placeholder,
+      ..tx_placeholder,
       inputs: [good_contract_config_input, input_placeholder],
       outputs: [bad_contract_output, output_placeholder],
       extra_signatories: [operator_payment_keyhash],
@@ -205,7 +206,7 @@ test failed_bootstrap_bad_datum_v1() fail {
 
   let tx =
     Transaction {
-      ..placeholder,
+      ..tx_placeholder,
       inputs: [good_contract_config_input, input_placeholder],
       outputs: [bad_contract_output, output_placeholder],
       extra_signatories: [operator_payment_keyhash],
@@ -230,7 +231,7 @@ test failed_bootstrap_bad_datum_v2() fail {
 
   let tx =
     Transaction {
-      ..placeholder,
+      ..tx_placeholder,
       inputs: [good_contract_config_input, input_placeholder],
       outputs: [bad_contract_output, output_placeholder],
       extra_signatories: [operator_payment_keyhash],
@@ -244,14 +245,14 @@ test failed_bootstrap_bad_datum_v2() fail {
   )
 }
 
-test failed_configuration_minting_presents() fail {
+test failed_minting_presents() fail {
   // Incorrect action violating the rule:
   //   Minting:
   //     - forbidden
 
   let tx =
     Transaction {
-      ..placeholder,
+      ..tx_placeholder,
       inputs: [good_contract_config_input, input_placeholder],
       outputs: [good_contract_config_input.output, output_placeholder],
       mint: from_asset("any policy", "any asset name", 1),

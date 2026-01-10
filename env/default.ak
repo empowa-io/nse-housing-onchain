@@ -30,9 +30,8 @@ pub const listing_verification_key =
 pub const listing_signing_key =
   #"67bb93be72ab65080b9e86e6b19f63d7b2a57ce6a3724c8c70ba66e4a4fac765"
 
-pub const base_fee_size = 100
-
 //1%
+pub const base_fee_size = 100
 
 pub const contract_policy_id = "CONTRACT"
 

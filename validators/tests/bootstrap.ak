@@ -1,6 +1,7 @@
 use cardano/assets.{from_asset, from_lovelace, merge}
 use cardano/transaction.{
-  InlineDatum, Input, NoDatum, Output, OutputReference, Transaction, placeholder,
+  InlineDatum, Input, NoDatum, Output, OutputReference, Transaction,
+  placeholder as tx_placeholder,
 }
 use config.{
   contract_bootstrap_utxo_hash, contract_bootstrap_utxo_index,
@@ -60,12 +61,12 @@ type BadDatum {
 
 // Validatiors: Minting only
 
-test success_bootstrap() {
+test succes_bootstrap() {
   // Successful bootstrap where the operator correctly registers the configuration eUTXO
 
   let tx =
     Transaction {
-      ..placeholder,
+      ..tx_placeholder,
       inputs: [good_bootstrap_input],
       outputs: [good_contract_output, output_placeholder],
       mint: good_mint,
@@ -75,14 +76,14 @@ test success_bootstrap() {
   nse_housing.nse_housing.mint(Bootstrap, contract_policy_id, tx)
 }
 
-test failed_bootstrap_bad_inputs() fail {
+test failed_bad_inputs() fail {
   // Incorrect action violating the rule:
   //   Inputs:
   //     - exactly one input
 
   let tx =
     Transaction {
-      ..placeholder,
+      ..tx_placeholder,
       inputs: [good_bootstrap_input, input_placeholder],
       outputs: [good_contract_output, output_placeholder],
       mint: good_mint,
@@ -92,7 +93,7 @@ test failed_bootstrap_bad_inputs() fail {
   nse_housing.nse_housing.mint(Bootstrap, contract_policy_id, tx)
 }
 
-test failed_bootstrap_bad_bootstrap_utxo_hash() fail {
+test failed_bad_bootstrap_utxo_hash() fail {
   // Incorrect action violating the rule:
   //   Inputs:
   //     - exactly one input using contract_bootstrap_utxo_hash
@@ -108,7 +109,7 @@ test failed_bootstrap_bad_bootstrap_utxo_hash() fail {
 
   let tx =
     Transaction {
-      ..placeholder,
+      ..tx_placeholder,
       inputs: [bad_bootstrap_input],
       outputs: [good_contract_output, output_placeholder],
       mint: good_mint,
@@ -118,7 +119,7 @@ test failed_bootstrap_bad_bootstrap_utxo_hash() fail {
   nse_housing.nse_housing.mint(Bootstrap, contract_policy_id, tx)
 }
 
-test failed_bootstrap_bad_bootstrap_utxo_index() fail {
+test failed_bad_bootstrap_utxo_index() fail {
   // Incorrect action violating the rule:
   //   Inputs:
   //     - exactly one input using contract_bootstrap_utxo_hash#contract_bootstrap_utxo_index
@@ -134,7 +135,7 @@ test failed_bootstrap_bad_bootstrap_utxo_index() fail {
 
   let tx =
     Transaction {
-      ..placeholder,
+      ..tx_placeholder,
       inputs: [bad_bootstrap_input],
       outputs: [good_contract_output, output_placeholder],
       mint: good_mint,
@@ -144,14 +145,14 @@ test failed_bootstrap_bad_bootstrap_utxo_index() fail {
   nse_housing.nse_housing.mint(Bootstrap, contract_policy_id, tx)
 }
 
-test failed_bootstrap_many_contract_outputs() fail {
+test failed_many_contract_outputs() fail {
   // Incorrect action violating the rule:
   //   Outputs:
   //     - exactly one output to the contract address
 
   let tx =
     Transaction {
-      ..placeholder,
+      ..tx_placeholder,
       inputs: [good_bootstrap_input],
       outputs: [good_contract_output, good_contract_output, output_placeholder],
       mint: good_mint,
@@ -160,7 +161,7 @@ test failed_bootstrap_many_contract_outputs() fail {
   nse_housing.nse_housing.mint(Bootstrap, contract_policy_id, tx)
 }
 
-test failed_bootstrap_no_marker_in_contract_output() fail {
+test failed_no_marker_in_contract_output() fail {
   // Incorrect action violating the rule:
   //   Outputs:
   //   Outputs:
@@ -171,7 +172,7 @@ test failed_bootstrap_no_marker_in_contract_output() fail {
 
   let tx =
     Transaction {
-      ..placeholder,
+      ..tx_placeholder,
       inputs: [good_bootstrap_input],
       outputs: [bad_contract_output, output_placeholder],
       mint: good_mint,
@@ -180,7 +181,7 @@ test failed_bootstrap_no_marker_in_contract_output() fail {
   nse_housing.nse_housing.mint(Bootstrap, contract_policy_id, tx)
 }
 
-test failed_bootstrap_bad_datum_v1() fail {
+test failed_bad_datum_v1() fail {
   // Incorrect action violating the rule:
   //   Outputs:
   //     - exactly one output to the contract address containing:
@@ -190,7 +191,7 @@ test failed_bootstrap_bad_datum_v1() fail {
 
   let tx =
     Transaction {
-      ..placeholder,
+      ..tx_placeholder,
       inputs: [good_bootstrap_input],
       outputs: [bad_contract_output, output_placeholder],
       mint: good_mint,
@@ -200,7 +201,7 @@ test failed_bootstrap_bad_datum_v1() fail {
   nse_housing.nse_housing.mint(Bootstrap, contract_policy_id, tx)
 }
 
-test failed_bootstrap_bad_datum_v2() fail {
+test failed_bad_datum_v2() fail {
   // Incorrect action violating the rule:
   //   Outputs:
   //     - exactly one output to the contract address containing:
@@ -211,7 +212,7 @@ test failed_bootstrap_bad_datum_v2() fail {
 
   let tx =
     Transaction {
-      ..placeholder,
+      ..tx_placeholder,
       inputs: [good_bootstrap_input],
       outputs: [bad_contract_output, output_placeholder],
       mint: good_mint,
@@ -221,7 +222,7 @@ test failed_bootstrap_bad_datum_v2() fail {
   nse_housing.nse_housing.mint(Bootstrap, contract_policy_id, tx)
 }
 
-test failed_bootstrap_bad_minting_policy_id() fail {
+test failed_bad_minting_policy_id() fail {
   // Incorrect action violating the rule:
   //   Minting:
   //     - exactly one `contract_policy_id.contract_config_marker`
@@ -230,7 +231,7 @@ test failed_bootstrap_bad_minting_policy_id() fail {
 
   let tx =
     Transaction {
-      ..placeholder,
+      ..tx_placeholder,
       inputs: [good_bootstrap_input],
       outputs: [good_contract_output, output_placeholder],
       mint: bad_mint,
@@ -240,7 +241,7 @@ test failed_bootstrap_bad_minting_policy_id() fail {
   nse_housing.nse_housing.mint(Bootstrap, contract_policy_id, tx)
 }
 
-test failed_bootstrap_bad_minting_asset_name() fail {
+test failed_bad_minting_asset_name() fail {
   // Incorrect action violating the rule:
   //   Minting:
   //     - exactly one `contract_policy_id.contract_config_marker`
@@ -249,7 +250,7 @@ test failed_bootstrap_bad_minting_asset_name() fail {
 
   let tx =
     Transaction {
-      ..placeholder,
+      ..tx_placeholder,
       inputs: [good_bootstrap_input],
       outputs: [good_contract_output, output_placeholder],
       mint: bad_mint,
@@ -259,7 +260,7 @@ test failed_bootstrap_bad_minting_asset_name() fail {
   nse_housing.nse_housing.mint(Bootstrap, contract_policy_id, tx)
 }
 
-test failed_bootstrap_bad_minting_amount() fail {
+test failed_bad_minting_amount() fail {
   // Incorrect action violating the rule:
   //   Minting:
   //     - exactly one `contract_policy_id.contract_config_marker`
@@ -268,7 +269,7 @@ test failed_bootstrap_bad_minting_amount() fail {
 
   let tx =
     Transaction {
-      ..placeholder,
+      ..tx_placeholder,
       inputs: [good_bootstrap_input],
       outputs: [good_contract_output, output_placeholder],
       mint: bad_mint,
@@ -278,7 +279,7 @@ test failed_bootstrap_bad_minting_amount() fail {
   nse_housing.nse_housing.mint(Bootstrap, contract_policy_id, tx)
 }
 
-test failed_bootstrap_bad_minting_extra_asset() fail {
+test failed_bad_minting_extra_asset() fail {
   // Incorrect action violating the rule:
   //   Minting:
   //     - exactly one `contract_policy_id.contract_config_marker`
@@ -288,7 +289,7 @@ test failed_bootstrap_bad_minting_extra_asset() fail {
 
   let tx =
     Transaction {
-      ..placeholder,
+      ..tx_placeholder,
       inputs: [good_bootstrap_input],
       outputs: [good_contract_output, output_placeholder],
       mint: bad_mint,
@@ -298,14 +299,14 @@ test failed_bootstrap_bad_minting_extra_asset() fail {
   nse_housing.nse_housing.mint(Bootstrap, contract_policy_id, tx)
 }
 
-test failed_bootstrap_bad_signature() fail {
+test failed_bad_signature() fail {
   // Incorrect action violating the rule:
   //   Additional signers:
   //     - a signature corresponding to the `contract_operator_credential` field in the datum
 
   let tx =
     Transaction {
-      ..placeholder,
+      ..tx_placeholder,
       inputs: [good_bootstrap_input],
       outputs: [good_contract_output, output_placeholder],
       mint: good_mint,
