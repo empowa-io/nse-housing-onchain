@@ -17,7 +17,7 @@ use default.{
 use nse_housing
 use types.{Bootstrap, ConfigDatum}
 
-const good_mint = from_asset(contract_policy_id, contract_config_marker, 1)
+const config_marker = from_asset(contract_policy_id, contract_config_marker, 1)
 
 const good_conf_datum =
   ConfigDatum {
@@ -34,7 +34,7 @@ const good_contract_output =
   Output {
     ..output_placeholder,
     address: contract_address,
-    value: good_mint,
+    value: config_marker,
     datum: InlineDatum(good_conf_datum),
   }
 
@@ -53,7 +53,7 @@ type BadDatum {
 //     - exactly one output to the contract address containing:
 //       - 1 token `contract_policy_id.contract_config_marker`
 //       - a datum of type `ConfigDatum`
-//     - any number of outputs to other addresses if needed
+//     - any number of outputs to other addresses if needed (not validated)
 //   Minting [just 1]:
 //     - exactly one `contract_policy_id.contract_config_marker`
 //   Additional signers:
@@ -61,19 +61,22 @@ type BadDatum {
 
 // Validatiors: Minting only
 
+fn try(tx:Transaction) -> Bool{
+  nse_housing.exchange.mint(Bootstrap, contract_policy_id, tx)
+}
+
 test succes_bootstrap() {
   // Successful bootstrap where the operator correctly registers the configuration eUTXO
 
-  let tx =
+  try(
     Transaction {
       ..tx_placeholder,
       inputs: [good_bootstrap_input],
       outputs: [good_contract_output, output_placeholder],
-      mint: good_mint,
+      mint: config_marker,
       extra_signatories: [operator_payment_keyhash],
-    }
-
-  nse_housing.nse_housing.mint(Bootstrap, contract_policy_id, tx)
+    },
+  )
 }
 
 test failed_bad_inputs() fail {
@@ -81,16 +84,15 @@ test failed_bad_inputs() fail {
   //   Inputs:
   //     - exactly one input
 
-  let tx =
+  try(
     Transaction {
       ..tx_placeholder,
       inputs: [good_bootstrap_input, input_placeholder],
       outputs: [good_contract_output, output_placeholder],
-      mint: good_mint,
+      mint: config_marker,
       extra_signatories: [operator_payment_keyhash],
-    }
-
-  nse_housing.nse_housing.mint(Bootstrap, contract_policy_id, tx)
+    },
+  )
 }
 
 test failed_bad_bootstrap_utxo_hash() fail {
@@ -107,16 +109,15 @@ test failed_bad_bootstrap_utxo_hash() fail {
       ),
     }
 
-  let tx =
+  try(
     Transaction {
       ..tx_placeholder,
       inputs: [bad_bootstrap_input],
       outputs: [good_contract_output, output_placeholder],
-      mint: good_mint,
+      mint: config_marker,
       extra_signatories: [operator_payment_keyhash],
-    }
-
-  nse_housing.nse_housing.mint(Bootstrap, contract_policy_id, tx)
+    },
+  )
 }
 
 test failed_bad_bootstrap_utxo_index() fail {
@@ -133,16 +134,15 @@ test failed_bad_bootstrap_utxo_index() fail {
       ),
     }
 
-  let tx =
+  try(
     Transaction {
       ..tx_placeholder,
       inputs: [bad_bootstrap_input],
       outputs: [good_contract_output, output_placeholder],
-      mint: good_mint,
+      mint: config_marker,
       extra_signatories: [operator_payment_keyhash],
-    }
-
-  nse_housing.nse_housing.mint(Bootstrap, contract_policy_id, tx)
+    },
+  )
 }
 
 test failed_many_contract_outputs() fail {
@@ -150,15 +150,15 @@ test failed_many_contract_outputs() fail {
   //   Outputs:
   //     - exactly one output to the contract address
 
-  let tx =
+  try(
     Transaction {
       ..tx_placeholder,
       inputs: [good_bootstrap_input],
       outputs: [good_contract_output, good_contract_output, output_placeholder],
-      mint: good_mint,
+      mint: config_marker,
       extra_signatories: [operator_payment_keyhash],
-    }
-  nse_housing.nse_housing.mint(Bootstrap, contract_policy_id, tx)
+    },
+  )
 }
 
 test failed_no_marker_in_contract_output() fail {
@@ -170,15 +170,15 @@ test failed_no_marker_in_contract_output() fail {
   let bad_contract_output =
     Output { ..good_contract_output, value: from_lovelace(0) }
 
-  let tx =
+  try(
     Transaction {
       ..tx_placeholder,
       inputs: [good_bootstrap_input],
       outputs: [bad_contract_output, output_placeholder],
-      mint: good_mint,
+      mint: config_marker,
       extra_signatories: [operator_payment_keyhash],
-    }
-  nse_housing.nse_housing.mint(Bootstrap, contract_policy_id, tx)
+    },
+  )
 }
 
 test failed_bad_datum_v1() fail {
@@ -189,16 +189,15 @@ test failed_bad_datum_v1() fail {
 
   let bad_contract_output = Output { ..good_contract_output, datum: NoDatum }
 
-  let tx =
+  try(
     Transaction {
       ..tx_placeholder,
       inputs: [good_bootstrap_input],
       outputs: [bad_contract_output, output_placeholder],
-      mint: good_mint,
+      mint: config_marker,
       extra_signatories: [operator_payment_keyhash],
-    }
-
-  nse_housing.nse_housing.mint(Bootstrap, contract_policy_id, tx)
+    },
+  )
 }
 
 test failed_bad_datum_v2() fail {
@@ -210,16 +209,15 @@ test failed_bad_datum_v2() fail {
   let bad_contract_output =
     Output { ..good_contract_output, datum: InlineDatum(BadDatum(42)) }
 
-  let tx =
+  try(
     Transaction {
       ..tx_placeholder,
       inputs: [good_bootstrap_input],
       outputs: [bad_contract_output, output_placeholder],
-      mint: good_mint,
+      mint: config_marker,
       extra_signatories: [operator_payment_keyhash],
-    }
-
-  nse_housing.nse_housing.mint(Bootstrap, contract_policy_id, tx)
+    },
+  )
 }
 
 test failed_bad_minting_policy_id() fail {
@@ -229,16 +227,15 @@ test failed_bad_minting_policy_id() fail {
 
   let bad_mint = from_asset("wrong policy", contract_config_marker, 1)
 
-  let tx =
+  try(
     Transaction {
       ..tx_placeholder,
       inputs: [good_bootstrap_input],
       outputs: [good_contract_output, output_placeholder],
       mint: bad_mint,
       extra_signatories: [operator_payment_keyhash],
-    }
-
-  nse_housing.nse_housing.mint(Bootstrap, contract_policy_id, tx)
+    },
+  )
 }
 
 test failed_bad_minting_asset_name() fail {
@@ -248,16 +245,15 @@ test failed_bad_minting_asset_name() fail {
 
   let bad_mint = from_asset(contract_policy_id, "wrong asset name", 1)
 
-  let tx =
+  try(
     Transaction {
       ..tx_placeholder,
       inputs: [good_bootstrap_input],
       outputs: [good_contract_output, output_placeholder],
       mint: bad_mint,
       extra_signatories: [operator_payment_keyhash],
-    }
-
-  nse_housing.nse_housing.mint(Bootstrap, contract_policy_id, tx)
+    },
+  )
 }
 
 test failed_bad_minting_amount() fail {
@@ -267,16 +263,15 @@ test failed_bad_minting_amount() fail {
 
   let bad_mint = from_asset(contract_policy_id, contract_config_marker, 2)
 
-  let tx =
+  try(
     Transaction {
       ..tx_placeholder,
       inputs: [good_bootstrap_input],
       outputs: [good_contract_output, output_placeholder],
       mint: bad_mint,
       extra_signatories: [operator_payment_keyhash],
-    }
-
-  nse_housing.nse_housing.mint(Bootstrap, contract_policy_id, tx)
+    },
+  )
 }
 
 test failed_bad_minting_extra_asset() fail {
@@ -285,18 +280,17 @@ test failed_bad_minting_extra_asset() fail {
   //     - exactly one `contract_policy_id.contract_config_marker`
 
   let bad_mint =
-    merge(good_mint, from_asset(contract_policy_id, "wrong asset name", 1))
+    merge(config_marker, from_asset(contract_policy_id, "wrong asset name", 1))
 
-  let tx =
+  try(
     Transaction {
       ..tx_placeholder,
       inputs: [good_bootstrap_input],
       outputs: [good_contract_output, output_placeholder],
       mint: bad_mint,
       extra_signatories: [operator_payment_keyhash],
-    }
-
-  nse_housing.nse_housing.mint(Bootstrap, contract_policy_id, tx)
+    },
+  )
 }
 
 test failed_bad_signature() fail {
@@ -304,14 +298,13 @@ test failed_bad_signature() fail {
   //   Additional signers:
   //     - a signature corresponding to the `contract_operator_credential` field in the datum
 
-  let tx =
+  try(
     Transaction {
       ..tx_placeholder,
       inputs: [good_bootstrap_input],
       outputs: [good_contract_output, output_placeholder],
-      mint: good_mint,
+      mint: config_marker,
       extra_signatories: ["wrong keyhash"],
-    }
-
-  nse_housing.nse_housing.mint(Bootstrap, contract_policy_id, tx)
+    },
+  )
 }

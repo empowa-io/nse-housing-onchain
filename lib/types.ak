@@ -34,6 +34,7 @@ pub type ListingDatum {
 pub type ContractMode {
   Bootstrap
   Configuration
+  Cleaning
   OrderPlacing
   OrderChanging
   OrderCanceling

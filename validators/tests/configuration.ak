@@ -15,9 +15,9 @@ use default.{
   utxo_ref_contract, utxo_ref_placeholder,
 }
 use nse_housing
-use types.{Bootstrap, ConfigDatum, Configuration}
+use types.{Bootstrap, ConfigDatum, Configuration, ContractDatum}
 
-const good_mint = from_asset(contract_policy_id, contract_config_marker, 1)
+const config_marker = from_asset(contract_policy_id, contract_config_marker, 1)
 
 const operator_keyhash_new = "new operator"
 
@@ -43,7 +43,7 @@ const good_contract_output =
   Output {
     ..output_placeholder,
     address: contract_address,
-    value: good_mint,
+    value: config_marker,
     datum: InlineDatum(good_conf_datum_new),
   }
 
@@ -85,45 +85,46 @@ type BadDatum {
 
 // Validatiors: Spending only
 
+fn try(tx: Transaction, utxo: Input) -> Bool {
+  expect InlineDatum(datum) = utxo.output.datum
+  expect datum: ContractDatum = datum
+  nse_housing.exchange.spend(
+    Some(datum),
+    Configuration,
+    utxo.output_reference,
+    tx,
+  )
+}
+
 test success_and_operator_changed() {
   // Successful configureation where the operator correctly changes the configuration eUTXO
   // Needs two extra signatures
-  let tx =
+  try(
     Transaction {
       ..tx_placeholder,
       inputs: [good_contract_config_input, input_placeholder],
       outputs: [good_contract_output, output_placeholder],
       extra_signatories: [operator_payment_keyhash, operator_keyhash_new],
-    }
-
-  nse_housing.nse_housing.spend(
-    Some(good_conf_datum_old),
-    Configuration,
-    good_contract_config_input.output_reference,
-    tx,
+    },
+    good_contract_config_input,
   )
 }
 
 test success_and_operator_not_changed() {
   // Successful configureation where the operator correctly changes the configuration eUTXO
   // Needs Only one signature
-  let tx =
+  try(
     Transaction {
       ..tx_placeholder,
       inputs: [good_contract_config_input, input_placeholder],
       outputs: [good_contract_config_input.output, output_placeholder],
       extra_signatories: [operator_payment_keyhash],
-    }
-
-  nse_housing.nse_housing.spend(
-    Some(good_conf_datum_old),
-    Configuration,
-    good_contract_config_input.output_reference,
-    tx,
+    },
+    good_contract_config_input,
   )
 }
 
-test failed_operator_changed_without_signature() fail {
+test failed_operator_changed_without_new_signature() fail {
   // Incorrect action violating the rule:
   //   Additional signers:
   //     - a signature corresponding to the `contract_operator_credential` field in the `spent utxo datum`
@@ -133,19 +134,33 @@ test failed_operator_changed_without_signature() fail {
   // If allowed, there is a risk of losing control because ownership of the new keys is not confirmed.
   // A minor typo could mean losing control of the contract forever.
 
-  let tx =
+  try(
     Transaction {
       ..tx_placeholder,
       inputs: [good_contract_config_input, input_placeholder],
       outputs: [good_contract_output, output_placeholder],
       extra_signatories: [operator_payment_keyhash],
-    }
+    },
+    good_contract_config_input,
+  )
+}
 
-  nse_housing.nse_housing.spend(
-    Some(good_conf_datum_old),
-    Configuration,
-    good_contract_config_input.output_reference,
-    tx,
+test failed_operator_changed_without_old_signature() fail {
+  // Incorrect action violating the rule:
+  //   Additional signers:
+  //     - a signature corresponding to the `contract_operator_credential` field in the `spent utxo datum`
+  //     - a signature corresponding to the `contract_operator_credential` field in the `contract tx output datum`
+  //
+  // Case where the operator tries to transfer control to another party, but didn't sign it
+
+  try(
+    Transaction {
+      ..tx_placeholder,
+      inputs: [good_contract_config_input, input_placeholder],
+      outputs: [good_contract_output, output_placeholder],
+      extra_signatories: [operator_keyhash_new],
+    },
+    good_contract_config_input,
   )
 }
 
@@ -154,21 +169,20 @@ test failed_bad_inputs() fail {
   //   Inputs:
   //     - exactly one input with `contract_policy_id.contract_config_marker` inside
 
-  let bad_input = input_placeholder
-
-  let tx =
-    Transaction {
-      ..tx_placeholder,
-      inputs: [bad_input, input_placeholder],
-      outputs: [good_contract_config_input.output, output_placeholder],
-      extra_signatories: [operator_payment_keyhash],
+  let bad_contract_input =
+    Input {
+      ..input_placeholder,
+      output: Output { ..output_placeholder, address: contract_address },
     }
 
-  nse_housing.nse_housing.spend(
-    Some(good_conf_datum_old),
-    Configuration,
-    good_contract_config_input.output_reference,
-    tx,
+  try(
+    Transaction {
+      ..tx_placeholder,
+      inputs: [bad_contract_input, input_placeholder],
+      outputs: [good_contract_config_input.output, output_placeholder],
+      extra_signatories: [operator_payment_keyhash],
+    },
+    bad_contract_input,
   )
 }
 
@@ -180,19 +194,14 @@ test failed_bad_outputs() fail {
   let bad_contract_output =
     Output { ..good_contract_output, value: from_lovelace(0) }
 
-  let tx =
+  try(
     Transaction {
       ..tx_placeholder,
       inputs: [good_contract_config_input, input_placeholder],
       outputs: [bad_contract_output, output_placeholder],
       extra_signatories: [operator_payment_keyhash],
-    }
-
-  nse_housing.nse_housing.spend(
-    Some(good_conf_datum_old),
-    Configuration,
-    good_contract_config_input.output_reference,
-    tx,
+    },
+    good_contract_config_input,
   )
 }
 
@@ -204,19 +213,14 @@ test failed_bootstrap_bad_datum_v1() fail {
 
   let bad_contract_output = Output { ..good_contract_output, datum: NoDatum }
 
-  let tx =
+  try(
     Transaction {
       ..tx_placeholder,
       inputs: [good_contract_config_input, input_placeholder],
       outputs: [bad_contract_output, output_placeholder],
       extra_signatories: [operator_payment_keyhash],
-    }
-
-  nse_housing.nse_housing.spend(
-    Some(good_conf_datum_old),
-    Configuration,
-    good_contract_config_input.output_reference,
-    tx,
+    },
+    good_contract_config_input,
   )
 }
 
@@ -229,19 +233,14 @@ test failed_bootstrap_bad_datum_v2() fail {
   let bad_contract_output =
     Output { ..good_contract_output, datum: InlineDatum(BadDatum(42)) }
 
-  let tx =
+  try(
     Transaction {
       ..tx_placeholder,
       inputs: [good_contract_config_input, input_placeholder],
       outputs: [bad_contract_output, output_placeholder],
       extra_signatories: [operator_payment_keyhash],
-    }
-
-  nse_housing.nse_housing.spend(
-    Some(good_conf_datum_old),
-    Configuration,
-    good_contract_config_input.output_reference,
-    tx,
+    },
+    good_contract_config_input,
   )
 }
 
@@ -250,19 +249,14 @@ test failed_minting_presents() fail {
   //   Minting:
   //     - forbidden
 
-  let tx =
+  try(
     Transaction {
       ..tx_placeholder,
       inputs: [good_contract_config_input, input_placeholder],
       outputs: [good_contract_config_input.output, output_placeholder],
       mint: from_asset("any policy", "any asset name", 1),
       extra_signatories: [operator_payment_keyhash],
-    }
-
-  nse_housing.nse_housing.spend(
-    Some(good_conf_datum_old),
-    Configuration,
-    good_contract_config_input.output_reference,
-    tx,
+    },
+    good_contract_config_input,
   )
 }

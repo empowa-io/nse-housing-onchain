@@ -1,7 +1,5 @@
-////////////////////////
-///////////////////////
-
 use aiken/interval.{after}
+use cardano/address.{Address}
 use cardano/assets.{from_asset, from_lovelace, merge}
 use cardano/transaction.{
   InlineDatum, Input, NoDatum, Output, OutputReference, Transaction,
@@ -80,7 +78,7 @@ const good_listing_reference_input_wildcard =
     },
   }
 
-const good_mint = from_asset(contract_policy_id, contract_order_marker, 1)
+const order_marker = from_asset(contract_policy_id, contract_order_marker, 1)
 
 const order_asset_amount = 42
 
@@ -134,7 +132,7 @@ const good_sell_order_output =
     ..output_placeholder,
     address: contract_address,
     datum: InlineDatum(good_sell_order_datum),
-    value: good_mint
+    value: order_marker
       |> merge(good_order_subject)
       |> merge(good_order_ada),
   }
@@ -143,7 +141,7 @@ const good_buy_order_output =
   Output {
     ..good_sell_order_output,
     datum: InlineDatum(good_buy_order_datum),
-    value: good_mint
+    value: order_marker
       |> merge(
           from_lovelace(
             order_asset_amount * order_price_per_unit + contract_order_min_ada,
@@ -168,6 +166,7 @@ type BadDatum {
 // It also covers potential attack vectors.
 
 // A correct order placing transaction must contain:
+//   Inputs: (not validated)
 //   Reference inputs[2]:
 //     - Reference to the `listing eUTxO` allowing interaction with the asset being listed in the order
 //     - Reference to the contract valid `config eUTxO`
@@ -177,7 +176,7 @@ type BadDatum {
 //       - a datum of type `OrderDatum`
 //       - the required amount of locked assets depending on the order type (Buy/Sell)
 //       - `contract_order_min_ada` ADA (returned to the owner after the order is closed/executed)
-//     - any number of outputs to other addresses if needed
+//     - any number of outputs to other addresses if needed (not validated)
 //   Minting:
 //     - exactly 1 `contract_policy_id.contract_order_marker`
 //   Validity range[optional]:
@@ -188,91 +187,120 @@ type BadDatum {
 
 // Validatiors: Minting only
 
+fn try(tx: Transaction) -> Bool {
+  nse_housing.exchange.mint(OrderPlacing, contract_policy_id, tx)
+}
+
 test success_sell_no_wildcard() {
   // Successful transaction placing a sell order for 42 listed assets
 
-  let tx =
+  try(
     Transaction {
       ..tx_placeholder,
       reference_inputs: [
         good_config_reference_input, good_listing_reference_input_no_wildcard,
       ],
       outputs: [good_sell_order_output, output_placeholder],
-      mint: good_mint,
+      mint: order_marker,
       extra_signatories: [maker_payment_keyhash],
-    }
-
-  nse_housing.nse_housing.mint(OrderPlacing, contract_policy_id, tx)
+    },
+  )
 }
 
 test success_sell_wildcard() {
   // Successful transaction placing a sell order for 42 listed assets
 
-  let tx =
+  try(
     Transaction {
       ..tx_placeholder,
       reference_inputs: [
         good_config_reference_input, good_listing_reference_input_wildcard,
       ],
       outputs: [good_sell_order_output, output_placeholder],
-      mint: good_mint,
+      mint: order_marker,
       extra_signatories: [maker_payment_keyhash],
-    }
-
-  nse_housing.nse_housing.mint(OrderPlacing, contract_policy_id, tx)
+    },
+  )
 }
 
 test success_buy_no_wildcard() {
   // Successful transaction placing a buy order for 42 listed assets
 
-  let tx =
+  try(
     Transaction {
       ..tx_placeholder,
       reference_inputs: [
         good_config_reference_input, good_listing_reference_input_no_wildcard,
       ],
       outputs: [good_buy_order_output, output_placeholder],
-      mint: good_mint,
+      mint: order_marker,
       extra_signatories: [maker_payment_keyhash],
-    }
-
-  nse_housing.nse_housing.mint(OrderPlacing, contract_policy_id, tx)
+    },
+  )
 }
 
 test success_buy_wildcard() {
   // Successful transaction placing a buy order for 42 listed assets
 
-  let tx =
+  try(
     Transaction {
       ..tx_placeholder,
       reference_inputs: [
         good_config_reference_input, good_listing_reference_input_wildcard,
       ],
       outputs: [good_buy_order_output, output_placeholder],
-      mint: good_mint,
+      mint: order_marker,
       extra_signatories: [maker_payment_keyhash],
-    }
-
-  nse_housing.nse_housing.mint(OrderPlacing, contract_policy_id, tx)
+    },
+  )
 }
 
-test failed_no_listing_ref() fail {
+test failed_no_config_ref() fail {
   // Incorrect action violating the rule:
   //   Reference inputs[2]:
-  //     - Reference to the `listing eUTxO` allowing interaction with the asset being listed in the order
-  let tx =
+  //     - Reference to the contract `config eUTxO`
+
+  // The user forgot to attach the config to the transaction
+  try(
     Transaction {
       ..tx_placeholder,
-      reference_inputs: [good_config_reference_input],
+      reference_inputs: [good_listing_reference_input_wildcard],
       outputs: [good_sell_order_output, output_placeholder],
-      mint: good_mint,
+      mint: order_marker,
       extra_signatories: [maker_payment_keyhash],
-    }
-
-  nse_housing.nse_housing.mint(OrderPlacing, contract_policy_id, tx)
+    },
+  )
 }
 
-test failed_bad_config_ref() fail {
+test fail_bad_config_reference_utxo() fail {
+  // Incorrect action violating the rule:
+  //   Reference inputs[2]:
+  //     - Reference to the contract `config eUTxO`
+
+  // The user provided a link to another utxo at the contract address instead of the config
+  let bad_config_reference_input =
+    Input {
+      ..good_config_reference_input,
+      output: Output {
+        ..good_config_reference_input.output,
+        value: from_asset("wrong policy", "wrong asset name", 1),
+      },
+    }
+
+  try(
+    Transaction {
+      ..tx_placeholder,
+      reference_inputs: [
+        bad_config_reference_input, good_listing_reference_input_no_wildcard,
+      ],
+      outputs: [good_sell_order_output, output_placeholder],
+      mint: order_marker,
+      extra_signatories: [maker_payment_keyhash],
+    },
+  )
+}
+
+test failed_bad_config_ref_address() fail {
   // Incorrect action violating the rule:
   //   Reference inputs[2]:
   //     - Reference to the contract `config eUTxO`
@@ -288,22 +316,38 @@ test failed_bad_config_ref() fail {
       ..good_config_reference_input,
       output: Output {
         ..good_config_reference_input.output,
+        address: taker_address,
         value: from_asset("unknown policy", contract_config_marker, 1),
       },
     }
 
-  let tx =
+  try(
     Transaction {
       ..tx_placeholder,
       reference_inputs: [
         bad_config_reference_input, good_listing_reference_input_no_wildcard,
       ],
       outputs: [good_sell_order_output, output_placeholder],
-      mint: good_mint,
+      mint: order_marker,
       extra_signatories: [maker_payment_keyhash],
-    }
+    },
+  )
+}
 
-  nse_housing.nse_housing.mint(OrderPlacing, contract_policy_id, tx)
+test failed_no_listing_ref() fail {
+  // Incorrect action violating the rule:
+  //   Reference inputs[2]:
+  //     - Reference to the `listing eUTxO` allowing interaction with the asset being listed in the order
+
+  try(
+    Transaction {
+      ..tx_placeholder,
+      reference_inputs: [good_config_reference_input],
+      outputs: [good_sell_order_output, output_placeholder],
+      mint: order_marker,
+      extra_signatories: [maker_payment_keyhash],
+    },
+  )
 }
 
 test failed_bad_listing_ref() fail {
@@ -331,18 +375,17 @@ test failed_bad_listing_ref() fail {
       },
     }
 
-  let tx =
+  try(
     Transaction {
       ..tx_placeholder,
       reference_inputs: [
         good_config_reference_input, bad_listing_reference_input,
       ],
       outputs: [good_sell_order_output, output_placeholder],
-      mint: good_mint,
+      mint: order_marker,
       extra_signatories: [maker_payment_keyhash],
-    }
-
-  nse_housing.nse_housing.mint(OrderPlacing, contract_policy_id, tx)
+    },
+  )
 }
 
 test failed_no_order_output() fail {
@@ -350,18 +393,17 @@ test failed_no_order_output() fail {
   //   Outputs[>=1]:
   //     - exactly one output to the contract address containing
 
-  let tx =
+  try(
     Transaction {
       ..tx_placeholder,
       reference_inputs: [
         good_config_reference_input, good_listing_reference_input_no_wildcard,
       ],
       outputs: [output_placeholder, output_placeholder],
-      mint: good_mint,
+      mint: order_marker,
       extra_signatories: [maker_payment_keyhash],
-    }
-
-  nse_housing.nse_housing.mint(OrderPlacing, contract_policy_id, tx)
+    },
+  )
 }
 
 test failed_many_contract_outputs() fail {
@@ -374,7 +416,7 @@ test failed_many_contract_outputs() fail {
   let extra_contract_output =
     Output { ..output_placeholder, address: contract_address }
 
-  let tx =
+  try(
     Transaction {
       ..tx_placeholder,
       reference_inputs: [
@@ -383,11 +425,10 @@ test failed_many_contract_outputs() fail {
       outputs: [
         good_sell_order_output, extra_contract_output, output_placeholder,
       ],
-      mint: good_mint,
+      mint: order_marker,
       extra_signatories: [maker_payment_keyhash],
-    }
-
-  nse_housing.nse_housing.mint(OrderPlacing, contract_policy_id, tx)
+    },
+  )
 }
 
 test failed_bad_order_output_no_marker() fail {
@@ -404,18 +445,17 @@ test failed_bad_order_output_no_marker() fail {
         |> merge(good_order_ada),
     }
 
-  let tx =
+  try(
     Transaction {
       ..tx_placeholder,
       reference_inputs: [
         good_config_reference_input, good_listing_reference_input_no_wildcard,
       ],
       outputs: [output_placeholder, output_placeholder],
-      mint: good_mint,
+      mint: order_marker,
       extra_signatories: [maker_payment_keyhash],
-    }
-
-  nse_housing.nse_housing.mint(OrderPlacing, contract_policy_id, tx)
+    },
+  )
 }
 
 test failed_bad_order_output_no_datum() fail {
@@ -426,18 +466,17 @@ test failed_bad_order_output_no_datum() fail {
 
   let bad_order_output = Output { ..good_sell_order_output, datum: NoDatum }
 
-  let tx =
+  try(
     Transaction {
       ..tx_placeholder,
       reference_inputs: [
         good_config_reference_input, good_listing_reference_input_no_wildcard,
       ],
       outputs: [bad_order_output, output_placeholder],
-      mint: good_mint,
+      mint: order_marker,
       extra_signatories: [maker_payment_keyhash],
-    }
-
-  nse_housing.nse_housing.mint(OrderPlacing, contract_policy_id, tx)
+    },
+  )
 }
 
 test failed_bad_order_output_bad_datum() fail {
@@ -449,18 +488,17 @@ test failed_bad_order_output_bad_datum() fail {
   let bad_order_output =
     Output { ..good_sell_order_output, datum: InlineDatum(BadDatum(42)) }
 
-  let tx =
+  try(
     Transaction {
       ..tx_placeholder,
       reference_inputs: [
         good_config_reference_input, good_listing_reference_input_no_wildcard,
       ],
       outputs: [bad_order_output, output_placeholder],
-      mint: good_mint,
+      mint: order_marker,
       extra_signatories: [maker_payment_keyhash],
-    }
-
-  nse_housing.nse_housing.mint(OrderPlacing, contract_policy_id, tx)
+    },
+  )
 }
 
 test failed_bad_sell_order_output_no_assets() fail {
@@ -473,22 +511,21 @@ test failed_bad_sell_order_output_no_assets() fail {
   let bad_order_output =
     Output {
       ..good_sell_order_output,
-      value: good_mint
+      value: order_marker
         |> merge(good_order_ada),
     }
 
-  let tx =
+  try(
     Transaction {
       ..tx_placeholder,
       reference_inputs: [
         good_config_reference_input, good_listing_reference_input_no_wildcard,
       ],
       outputs: [bad_order_output, output_placeholder],
-      mint: good_mint,
+      mint: order_marker,
       extra_signatories: [maker_payment_keyhash],
-    }
-
-  nse_housing.nse_housing.mint(OrderPlacing, contract_policy_id, tx)
+    },
+  )
 }
 
 test failed_bad_sell_order_output_not_enough_assets() fail {
@@ -501,7 +538,7 @@ test failed_bad_sell_order_output_not_enough_assets() fail {
   let bad_order_output =
     Output {
       ..good_sell_order_output,
-      value: good_mint
+      value: order_marker
         |> merge(
             from_asset(
               approved_policy_id,
@@ -512,18 +549,17 @@ test failed_bad_sell_order_output_not_enough_assets() fail {
         |> merge(good_order_ada),
     }
 
-  let tx =
+  try(
     Transaction {
       ..tx_placeholder,
       reference_inputs: [
         good_config_reference_input, good_listing_reference_input_no_wildcard,
       ],
       outputs: [bad_order_output, output_placeholder],
-      mint: good_mint,
+      mint: order_marker,
       extra_signatories: [maker_payment_keyhash],
-    }
-
-  nse_housing.nse_housing.mint(OrderPlacing, contract_policy_id, tx)
+    },
+  )
 }
 
 test failed_bad_sell_order_output_extra_assets() fail {
@@ -537,7 +573,7 @@ test failed_bad_sell_order_output_extra_assets() fail {
   let bad_order_output =
     Output {
       ..good_sell_order_output,
-      value: good_mint
+      value: order_marker
         |> merge(
             from_asset(
               approved_policy_id,
@@ -548,18 +584,17 @@ test failed_bad_sell_order_output_extra_assets() fail {
         |> merge(good_order_ada),
     }
 
-  let tx =
+  try(
     Transaction {
       ..tx_placeholder,
       reference_inputs: [
         good_config_reference_input, good_listing_reference_input_no_wildcard,
       ],
       outputs: [bad_order_output, output_placeholder],
-      mint: good_mint,
+      mint: order_marker,
       extra_signatories: [maker_payment_keyhash],
-    }
-
-  nse_housing.nse_housing.mint(OrderPlacing, contract_policy_id, tx)
+    },
+  )
 }
 
 test failed_bad_buy_order_output_not_enough_locked_ada() fail {
@@ -573,7 +608,7 @@ test failed_bad_buy_order_output_not_enough_locked_ada() fail {
   let bad_order_output =
     Output {
       ..good_buy_order_output,
-      value: good_mint
+      value: order_marker
         |> merge(good_order_subject)
         |> merge(
             from_lovelace(
@@ -582,18 +617,17 @@ test failed_bad_buy_order_output_not_enough_locked_ada() fail {
           ),
     }
 
-  let tx =
+  try(
     Transaction {
       ..tx_placeholder,
       reference_inputs: [
         good_config_reference_input, good_listing_reference_input_no_wildcard,
       ],
       outputs: [bad_order_output, output_placeholder],
-      mint: good_mint,
+      mint: order_marker,
       extra_signatories: [maker_payment_keyhash],
-    }
-
-  nse_housing.nse_housing.mint(OrderPlacing, contract_policy_id, tx)
+    },
+  )
 }
 
 test failed_bad_buy_order_output_extra_ada() fail {
@@ -607,7 +641,7 @@ test failed_bad_buy_order_output_extra_ada() fail {
   let bad_order_output =
     Output {
       ..good_buy_order_output,
-      value: good_mint
+      value: order_marker
         |> merge(good_order_subject)
         |> merge(
             from_lovelace(
@@ -616,18 +650,17 @@ test failed_bad_buy_order_output_extra_ada() fail {
           ),
     }
 
-  let tx =
+  try(
     Transaction {
       ..tx_placeholder,
       reference_inputs: [
         good_config_reference_input, good_listing_reference_input_no_wildcard,
       ],
       outputs: [bad_order_output, output_placeholder],
-      mint: good_mint,
+      mint: order_marker,
       extra_signatories: [maker_payment_keyhash],
-    }
-
-  nse_housing.nse_housing.mint(OrderPlacing, contract_policy_id, tx)
+    },
+  )
 }
 
 test failed_bad_order_no_min_ada() fail {
@@ -640,22 +673,21 @@ test failed_bad_order_no_min_ada() fail {
   let bad_order_output =
     Output {
       ..good_sell_order_output,
-      value: good_mint
+      value: order_marker
         |> merge(good_order_subject),
     }
 
-  let tx =
+  try(
     Transaction {
       ..tx_placeholder,
       reference_inputs: [
         good_config_reference_input, good_listing_reference_input_no_wildcard,
       ],
       outputs: [bad_order_output, output_placeholder],
-      mint: good_mint,
+      mint: order_marker,
       extra_signatories: [maker_payment_keyhash],
-    }
-
-  nse_housing.nse_housing.mint(OrderPlacing, contract_policy_id, tx)
+    },
+  )
 }
 
 test failed_no_order_marker_in_order_output() fail {
@@ -673,18 +705,17 @@ test failed_no_order_marker_in_order_output() fail {
         |> merge(good_order_ada),
     }
 
-  let tx =
+  try(
     Transaction {
       ..tx_placeholder,
       reference_inputs: [
         good_config_reference_input, good_listing_reference_input_no_wildcard,
       ],
       outputs: [bad_order_output, output_placeholder],
-      mint: good_mint,
+      mint: order_marker,
       extra_signatories: [maker_payment_keyhash],
-    }
-
-  nse_housing.nse_housing.mint(OrderPlacing, contract_policy_id, tx)
+    },
+  )
 }
 
 test failed_extra_marker_mint() fail {
@@ -697,7 +728,7 @@ test failed_extra_marker_mint() fail {
   // No difference: any variant requires minting more than one marker and must be caught at this point
   let bad_mint = from_asset(contract_policy_id, contract_order_marker, 2)
 
-  let tx =
+  try(
     Transaction {
       ..tx_placeholder,
       reference_inputs: [
@@ -706,9 +737,8 @@ test failed_extra_marker_mint() fail {
       outputs: [good_sell_order_output, output_placeholder],
       mint: bad_mint,
       extra_signatories: [maker_payment_keyhash],
-    }
-
-  nse_housing.nse_housing.mint(OrderPlacing, contract_policy_id, tx)
+    },
+  )
 }
 
 test failed_bad_order_timeout() fail {
@@ -718,19 +748,18 @@ test failed_bad_order_timeout() fail {
 
   // User messed up the timeout? Better to reject the transaction than create an already-expired order
 
-  let tx =
+  try(
     Transaction {
       ..tx_placeholder,
       reference_inputs: [
         good_config_reference_input, good_listing_reference_input_no_wildcard,
       ],
       outputs: [good_sell_order_output_with_timeout, output_placeholder],
-      mint: good_mint,
+      mint: order_marker,
       validity_range: after(timeout),
       extra_signatories: [maker_payment_keyhash],
-    }
-
-  nse_housing.nse_housing.mint(OrderPlacing, contract_policy_id, tx)
+    },
+  )
 }
 
 test failed_missed_extra_signature() fail {
@@ -741,17 +770,16 @@ test failed_missed_extra_signature() fail {
   // The user forgot to require a signature by the key specified in the datum and may:
   //  - lose control over the order
   //  - lose funds, because the key specified in the datum is tied to the address where the payout will go
-  let tx =
+  try(
     Transaction {
       ..tx_placeholder,
       reference_inputs: [
         good_config_reference_input, good_listing_reference_input_no_wildcard,
       ],
       outputs: [good_sell_order_output, output_placeholder],
-      mint: good_mint,
-    }
-
-  nse_housing.nse_housing.mint(OrderPlacing, contract_policy_id, tx)
+      mint: order_marker,
+    },
+  )
 }
 
 test failed_bad_extra_signature() fail {
@@ -762,16 +790,15 @@ test failed_bad_extra_signature() fail {
   // The user provided an incorrect signature that does not match the key in the datum, so they may:
   //  - lose control over the order
   //  - lose funds, because the key specified in the datum is tied to the address where the payout will go
-  let tx =
+  try(
     Transaction {
       ..tx_placeholder,
       reference_inputs: [
         good_config_reference_input, good_listing_reference_input_no_wildcard,
       ],
       outputs: [good_sell_order_output, output_placeholder],
-      mint: good_mint,
+      mint: order_marker,
       extra_signatories: ["wrong keyhash"],
-    }
-
-  nse_housing.nse_housing.mint(OrderPlacing, contract_policy_id, tx)
+    },
+  )
 }
