@@ -59,7 +59,7 @@ const good_contract_config_input =
 type BadDatum {
   val: Int,
 }
-
+// TODO: add output index check
 // Test suite for the contract reconfiguration
 // Technically, this is almost the same operation as bootstrap, differing only by:
 //  - forbidding minting/burning of `contract_policy_id.contract_config_marker`
@@ -74,6 +74,7 @@ type BadDatum {
 //     - any other inputs if needed
 //   Outputs:
 //     - exactly one output to the contract address containing:
+//       - index 0
 //       - 1 token `contract_policy_id.contract_config_marker`
 //       - a datum of type `ConfigDatum`
 //     - any number of outputs to other addresses if needed
@@ -96,6 +97,7 @@ fn try(tx: Transaction, utxo: Input) -> Bool {
   )
 }
 
+// Success cases
 test success_and_operator_changed() {
   // Successful configureation where the operator correctly changes the configuration eUTXO
   // Needs two extra signatures
@@ -124,6 +126,7 @@ test success_and_operator_not_changed() {
   )
 }
 
+// Failed cases
 test failed_operator_changed_without_new_signature() fail {
   // Incorrect action violating the rule:
   //   Additional signers:

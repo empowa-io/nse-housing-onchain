@@ -72,7 +72,7 @@ const good_config_reference_input =
     output: Output {
       ..output_placeholder,
       address: contract_address,
-      value: from_asset(contract_policy_id, contract_config_marker, 1),
+      value: config_marker,
       datum: InlineDatum(good_conf_datum),
     },
   }
@@ -166,6 +166,11 @@ type BadDatum {
   val: Int,
 }
 
+//TODO: check if `good_order_ada` were broken
+//TODO: check more than 2 references
+//TODO: traded_asset_price: 0
+// TODO: add output index check
+
 // Test suite for the order changing action
 //  - Order owner may change its configuration at any moment
 //  - Operator is not allowed to do so(!)
@@ -184,6 +189,7 @@ type BadDatum {
 //      - Any number of user inputs if needed (not validated)
 //   Outputs[>=1]:
 //     - exactly one output to the contract address containing:
+//       - index 0
 //       - 1 token `contract_policy_id.contract_order_marker`
 //       - a datum of type `OrderDatum`
 //       - the required amount of locked assets depending on the order type (Buy/Sell)
@@ -194,7 +200,7 @@ type BadDatum {
 //   Additional signers:    
 //     - a signature corresponding to the `order_maker_credential` field in the spent utxo datum
 //     - a signature corresponding to the `order_maker_credential` field in the contract output utxo datum
-// Validatiors: Spending
+// Validatiors: Spending only
 
 fn try(tx: Transaction, utxo: Input) -> Bool {
   expect InlineDatum(datum) = utxo.output.datum
@@ -206,6 +212,8 @@ fn try(tx: Transaction, utxo: Input) -> Bool {
     tx,
   )
 }
+
+// Success cases
 
 test success_order_changing() {
   // Successful attempt to change the order
@@ -238,6 +246,8 @@ test success_order_changing_new_owner() {
     good_sell_order_input,
   )
 }
+
+// Failed cases
 
 test fail_no_config_reference() fail {
   // Incorrect action violating the rule:

@@ -116,7 +116,7 @@ const good_maker_buy_output =
       order_asset_amount * order_price_per_unit + contract_order_min_ada,
     ),
   }
-
+// TODO: add output index check
 // Test suite for the order canceling action
 //  - An order before the timeout expires can be closed either by the contract operator or the order owner
 //      - The order can be closed at any moment on demand
@@ -131,7 +131,8 @@ const good_maker_buy_output =
 //      - Exactly one input from the contract address containing the order eUTxO (`contract_policy_id.contract_order_marker` + OrderDatum)
 //      - Any number of user inputs if needed (not validated)
 //   Outputs[>=1]:
-//      - First one - the output to the address associated with the `order_maker_credential` keyhash in the order datum that holds the funds locked in the order
+//      - the output to the address associated with the `order_maker_credential` keyhash in the order datum that holds the funds locked in the order
+//        - index 0
 //      - any number of outputs to other addresses if needed (not validated)
 //   Minting:
 //     - exactly -1 `contract_policy_id.contract_order_marker`
@@ -157,6 +158,8 @@ fn try(tx: Transaction, utxo: Input) -> Bool {
     ),
   }
 }
+
+// Success cases
 
 test success_order_canceling_authorized_owner() {
   // Successful attempt to cancel the order by its owner
@@ -214,6 +217,8 @@ test success_order_canceling_unauthorized() {
     sell_order_input,
   )
 }
+
+// Failed cases
 
 test fail_no_config_reference() fail {
   // Incorrect action violating the rule:

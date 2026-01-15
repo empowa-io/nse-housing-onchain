@@ -159,6 +159,11 @@ type BadDatum {
   val: Int,
 }
 
+//TODO: check if `good_order_ada` were broken
+//TODO: check more than 2 references
+//TODO: traded_asset_price: 0
+// TODO: add output index check
+
 // Test suite for the order placing action
 // Order placing is not tied to the platform UI and can be performed by any user, including via CLI
 
@@ -172,6 +177,7 @@ type BadDatum {
 //     - Reference to the contract valid `config eUTxO`
 //   Outputs[>=1]:
 //     - exactly one output to the contract address containing:
+//       - index 0
 //       - 1 token `contract_policy_id.contract_order_marker`
 //       - a datum of type `OrderDatum`
 //       - the required amount of locked assets depending on the order type (Buy/Sell)
@@ -190,6 +196,8 @@ type BadDatum {
 fn try(tx: Transaction) -> Bool {
   nse_housing.exchange.mint(OrderPlacing, contract_policy_id, tx)
 }
+
+// Success cases
 
 test success_sell_no_wildcard() {
   // Successful transaction placing a sell order for 42 listed assets
@@ -254,6 +262,8 @@ test success_buy_wildcard() {
     },
   )
 }
+
+// Failed cases
 
 test failed_no_config_ref() fail {
   // Incorrect action violating the rule:

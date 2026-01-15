@@ -42,6 +42,7 @@ type BadDatum {
   val: Int,
 }
 
+// TODO: add output index check
 // Test suite for the contract launch phase
 // Bootstrapping can only be performed once, so we must ensure everything goes through without errors
 // Mostly checks that protect against human error in case the operator makes a mistake
@@ -51,6 +52,7 @@ type BadDatum {
 //     - exactly one input using contract_bootstrap_utxo_hash#contract_bootstrap_utxo_index
 //   Outputs [>= 1]:
 //     - exactly one output to the contract address containing:
+//       - index 0
 //       - 1 token `contract_policy_id.contract_config_marker`
 //       - a datum of type `ConfigDatum`
 //     - any number of outputs to other addresses if needed (not validated)
@@ -61,10 +63,11 @@ type BadDatum {
 
 // Validatiors: Minting only
 
-fn try(tx:Transaction) -> Bool{
+fn try(tx: Transaction) -> Bool {
   nse_housing.exchange.mint(Bootstrap, contract_policy_id, tx)
 }
 
+// Success cases
 test succes_bootstrap() {
   // Successful bootstrap where the operator correctly registers the configuration eUTXO
 
@@ -79,6 +82,7 @@ test succes_bootstrap() {
   )
 }
 
+// Failed cases
 test failed_bad_inputs() fail {
   // Incorrect action violating the rule:
   //   Inputs:
