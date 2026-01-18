@@ -2,28 +2,18 @@ use aiken/interval.{after, before}
 use cardano/address.{Address}
 use cardano/assets.{from_asset, from_lovelace, merge, negate}
 use cardano/transaction.{
-  InlineDatum, Input, NoDatum, Output, OutputReference, Transaction,
-  placeholder as tx_placeholder,
+  InlineDatum, Input, Output, Transaction, placeholder as tx_placeholder,
 }
-use config.{
-  contract_bootstrap_utxo_hash, contract_bootstrap_utxo_index,
-  contract_config_marker, contract_order_marker, contract_order_min_ada,
-}
+use config.{contract_config_marker, contract_order_min_ada}
 use default.{
   base_platform_fee_decimal_part, base_platform_fee_min_amount,
-  base_platform_fee_percent, config_marker, contract_address,
-  contract_payment_cred, contract_policy_id, input_placeholder,
-  listing_operator_payment_keyhash, maker_address, maker_payment_cred,
-  maker_payment_keyhash, operator_address, operator_payment_cred,
-  operator_payment_keyhash, order_marker, output_placeholder, platform_address,
-  taker_address, taker_payment_cred, taker_payment_keyhash, utxo_ref_bootstrap,
-  utxo_ref_contract, utxo_ref_placeholder,
+  base_platform_fee_percent, config_marker, contract_address, contract_policy_id,
+  input_placeholder, listing_operator_payment_keyhash, maker_payment_cred,
+  maker_payment_keyhash, operator_payment_keyhash, order_marker,
+  output_placeholder, platform_address, taker_address, taker_payment_keyhash,
 }
 use nse_housing
-use types.{
-  Bootstrap, Buy, ConfigDatum, ListingDatum, OrderCanceling, OrderDatum,
-  OrderPlacing, Sell,
-}
+use types.{ConfigDatum, OrderCanceling, OrderDatum, Sell}
 
 const approved_policy_id = "approved policy"
 
@@ -37,26 +27,14 @@ const timeout = 10
 
 const fee = 10
 
-const buy_order_datum =
-  OrderDatum {
-    order_type: Sell,
-    traded_asset_policy_id: approved_policy_id,
-    traded_asset_name: approved_asset_name,
-    traded_asset_amount: order_asset_amount,
-    traded_asset_price: order_price_per_unit,
-    partial_fulfillment_allowed: True,
-    order_timeout_date: 0,
-    order_maker_credential: maker_payment_keyhash,
-  }
-
 const conf_datum =
   ConfigDatum {
     platform_fee_percent: base_platform_fee_percent,
     platform_fee_decimal: base_platform_fee_decimal_part,
     platform_fee_min_amount: base_platform_fee_min_amount,
     platform_fee_address: platform_address,
-    contract_operator_credential: operator_payment_keyhash,
-    listing_operator_credential: listing_operator_payment_keyhash,
+    contract_operator_keyhash: operator_payment_keyhash,
+    listing_operator_keyhash: listing_operator_payment_keyhash,
     is_market_open: True,
   }
 
@@ -145,7 +123,7 @@ const good_maker_buy_output =
 //     - For unauthorized closure, if `timeout` in the datum points to some date, the upper bound must be after that date
 //   Additional signers:    
 //     a) a signature corresponding to the `order_maker_credential` field in the spent utxo datum
-//     b) OR a signature corresponding to the `contract_operator_credential` field in the config utxo datum
+//     b) OR a signature corresponding to the `contract_operator_keyhash` field in the config utxo datum
 // Validatiors: Minting + Spending
 
 fn try(tx: Transaction, utxo: Input) -> Bool {
@@ -532,7 +510,7 @@ test fail_incorrect_extra_signature() fail {
   // Incorrect action violating the rule:
   //   Additional signers:    
   //     a) a signature corresponding to the `order_maker_credential` field in the spent utxo datum
-  //     b) OR a signature corresponding to the `contract_operator_credential` field in the config utxo datum
+  //     b) OR a signature corresponding to the `contract_operator_keyhash` field in the config utxo datum
 
   // Attempt to use a signature that does not belong to the owner or operator
   try(

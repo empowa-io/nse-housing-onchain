@@ -1,24 +1,16 @@
 use cardano/assets.{from_asset, from_lovelace}
 use cardano/transaction.{
-  InlineDatum, Input, NoDatum, Output, OutputReference, Transaction,
+  InlineDatum, Input, NoDatum, Output, Transaction,
   placeholder as tx_placeholder,
-}
-use config.{
-  contract_bootstrap_utxo_hash, contract_bootstrap_utxo_index,
-  contract_config_marker, contract_order_marker, contract_order_min_ada,
 }
 use default.{
   base_platform_fee_decimal_part, base_platform_fee_min_amount,
-  base_platform_fee_percent, config_marker, contract_address,
-  contract_payment_cred, contract_policy_id, input_placeholder,
-  listing_operator_payment_keyhash, maker_address, maker_payment_cred,
-  maker_payment_keyhash, operator_address, operator_payment_cred,
-  operator_payment_keyhash, output_placeholder, platform_address, taker_address,
-  taker_payment_cred, taker_payment_keyhash, utxo_ref_bootstrap,
-  utxo_ref_contract, utxo_ref_placeholder,
+  base_platform_fee_percent, config_marker, contract_address, input_placeholder,
+  listing_operator_payment_keyhash, operator_payment_keyhash, output_placeholder,
+  platform_address, utxo_ref_contract,
 }
 use nse_housing
-use types.{Bootstrap, ConfigDatum, Configuration}
+use types.{ConfigDatum, Configuration}
 
 const operator_keyhash_new = "new operator"
 
@@ -30,8 +22,8 @@ const good_conf_datum_old =
     platform_fee_decimal: base_platform_fee_decimal_part,
     platform_fee_min_amount: base_platform_fee_min_amount,
     platform_fee_address: platform_address,
-    contract_operator_credential: operator_payment_keyhash,
-    listing_operator_credential: listing_operator_payment_keyhash,
+    contract_operator_keyhash: operator_payment_keyhash,
+    listing_operator_keyhash: listing_operator_payment_keyhash,
     is_market_open: False,
   }
 
@@ -41,8 +33,8 @@ const good_conf_datum_new =
     platform_fee_decimal: base_platform_fee_decimal_part,
     platform_fee_min_amount: base_platform_fee_min_amount * 2,
     platform_fee_address: platform_address,
-    contract_operator_credential: operator_keyhash_new,
-    listing_operator_credential: listing_operator_payment_keyhash_new,
+    contract_operator_keyhash: operator_keyhash_new,
+    listing_operator_keyhash: listing_operator_payment_keyhash_new,
     is_market_open: True,
   }
 
@@ -89,8 +81,8 @@ type BadDatum {
 //   Minting:
 //     - forbidden
 //   Additional signers:
-//     - a signature corresponding to the `contract_operator_credential` field in the spent utxo datum
-//     - a signature corresponding to the `contract_operator_credential` field in the contract tx output datum
+//     - a signature corresponding to the `contract_operator_keyhash` field in the spent utxo datum
+//     - a signature corresponding to the `contract_operator_keyhash` field in the contract tx output datum
 
 // Validatiors: Spending only
 
@@ -137,8 +129,8 @@ test success_and_operator_not_changed() {
 test failed_operator_changed_without_new_signature() fail {
   // Incorrect action violating the rule:
   //   Additional signers:
-  //     - a signature corresponding to the `contract_operator_credential` field in the `spent utxo datum`
-  //     - a signature corresponding to the `contract_operator_credential` field in the `contract tx output datum`
+  //     - a signature corresponding to the `contract_operator_keyhash` field in the `spent utxo datum`
+  //     - a signature corresponding to the `contract_operator_keyhash` field in the `contract tx output datum`
   //
   // Case where the operator tries to transfer control to another party without their signature.
   // If allowed, there is a risk of losing control because ownership of the new keys is not confirmed.
@@ -158,8 +150,8 @@ test failed_operator_changed_without_new_signature() fail {
 test failed_operator_changed_without_old_signature() fail {
   // Incorrect action violating the rule:
   //   Additional signers:
-  //     - a signature corresponding to the `contract_operator_credential` field in the `spent utxo datum`
-  //     - a signature corresponding to the `contract_operator_credential` field in the `contract tx output datum`
+  //     - a signature corresponding to the `contract_operator_keyhash` field in the `spent utxo datum`
+  //     - a signature corresponding to the `contract_operator_keyhash` field in the `contract tx output datum`
   //
   // Case where the operator tries to transfer control to another party, but didn't sign it
 

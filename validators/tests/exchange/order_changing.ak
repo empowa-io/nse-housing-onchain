@@ -1,29 +1,23 @@
-use aiken/interval.{after, before}
-use cardano/address.{Address}
+
 use cardano/assets.{from_asset, from_lovelace, merge, negate}
 use cardano/transaction.{
-  InlineDatum, Input, NoDatum, Output, OutputReference, Transaction,
+  InlineDatum, Input, NoDatum, Output,  Transaction,
   placeholder as tx_placeholder,
 }
 use config.{
-  contract_bootstrap_utxo_hash, contract_bootstrap_utxo_index,
-  contract_config_marker, contract_order_marker, contract_order_min_ada,
+   
+  contract_config_marker,  contract_order_min_ada,
 }
 use default.{
   base_platform_fee_decimal_part, base_platform_fee_min_amount,
-  base_platform_fee_percent, config_marker, contract_address,
-  contract_payment_cred, contract_policy_id, input_placeholder, listing_marker,
-  listing_operator_payment_keyhash, maker_address, maker_payment_cred,
-  maker_payment_keyhash, operator_address, operator_payment_cred,
-  operator_payment_keyhash, order_marker, output_placeholder, platform_address,
-  taker_address, taker_payment_cred, taker_payment_keyhash, utxo_ref_bootstrap,
-  utxo_ref_contract, utxo_ref_placeholder,
+  base_platform_fee_percent, config_marker, contract_address, input_placeholder,
+  listing_marker, listing_operator_payment_keyhash, maker_payment_keyhash,
+   operator_payment_keyhash, order_marker,
+  output_placeholder, platform_address, taker_address, 
+  taker_payment_keyhash,
 }
 use nse_housing
-use types.{
-  Bootstrap, Buy, ConfigDatum, ListingDatum, OrderChanging, OrderDatum,
-  OrderPlacing, Sell,
-}
+use types.{Buy, ConfigDatum, ListingDatum, OrderChanging, OrderDatum, Sell}
 
 const approved_policy_id = "approved policy"
 
@@ -34,8 +28,6 @@ const order_asset_amount = 42
 const order_price_per_unit = 10
 
 const timeout = 10
-
-const fee = 10
 
 const good_order_subject =
   from_asset(approved_policy_id, approved_asset_name, order_asset_amount)
@@ -48,8 +40,8 @@ const good_conf_datum =
     platform_fee_decimal: base_platform_fee_decimal_part,
     platform_fee_min_amount: base_platform_fee_min_amount,
     platform_fee_address: platform_address,
-    contract_operator_credential: operator_payment_keyhash,
-    listing_operator_credential: listing_operator_payment_keyhash,
+    contract_operator_keyhash: operator_payment_keyhash,
+    listing_operator_keyhash: listing_operator_payment_keyhash,
     is_market_open: True,
   }
 

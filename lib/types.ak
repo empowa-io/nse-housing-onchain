@@ -1,4 +1,4 @@
-use aiken/crypto.{Signature, VerificationKey, VerificationKeyHash}
+use aiken/crypto.{VerificationKeyHash}
 use cardano/address.{Address}
 use cardano/assets.{AssetName, PolicyId}
 
@@ -23,8 +23,8 @@ pub type ConfigDatum {
   platform_fee_decimal: Int,
   platform_fee_min_amount: Int,
   platform_fee_address: Address,
-  contract_operator_credential: VerificationKeyHash,
-  listing_operator_credential: VerificationKeyHash,
+  contract_operator_keyhash: VerificationKeyHash,
+  listing_operator_keyhash: VerificationKeyHash,
   is_market_open: Bool,
 }
 

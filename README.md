@@ -33,7 +33,7 @@ The operator has the following privileges:
   * By `policy_id`
   * By `policy_id + asset_name`
 
-> Note: `listing_operator_credential` may match `contract_operator_credential` if role separation is not required.
+> Note: `listing_operator_credential` may match `contract_operator_keyhash` if role separation is not required.
 
 ---
 
@@ -80,7 +80,7 @@ Stores global contract parameters.
 * `platform_fee_decimal` (decimal precision for fee percent)
 * `platform_fee_min_amount` (minimum fee in lovelace)
 * `platform_fee_address`
-* `contract_operator_credential`
+* `contract_operator_keyhash`
 * `listing_operator_credential`
 * `is_market_open`
 
@@ -190,7 +190,7 @@ Initial contract setup.
   * Exactly one output to the contract address (index 0) with `contract_config_marker` and a valid `ConfigDatum`
   * Any number of outputs to other addresses if needed (not validated)
   * Minting exactly one `contract_config_marker`
-  * Operator signature (`contract_operator_credential`)
+  * Operator signature (`contract_operator_keyhash`)
 
 ---
 
@@ -255,7 +255,7 @@ Removal of garbage UTXOs at the contract address.
     * `contract_listing_marker`
   * Any number of inputs from other addresses if needed (not validated)
   * Minting is **forbidden**
-  * Operator signature (`contract_operator_credential`)
+  * Operator signature (`contract_operator_keyhash`)
 
 ---
 
@@ -324,7 +324,7 @@ Cancellation by the order owner or the operator.
     * If unauthorized, the upper bound must be **after** the timeout
   * Signatures:
 
-    * `order_maker_credential` **or** `contract_operator_credential`
+    * `order_maker_credential` **or** `contract_operator_keyhash`
 
 ---
 

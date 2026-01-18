@@ -5,17 +5,13 @@ use cardano/transaction.{
 }
 use config.{
   contract_bootstrap_utxo_hash, contract_bootstrap_utxo_index,
-  contract_config_marker, contract_order_marker, contract_order_min_ada,
+  contract_config_marker,
 }
 use default.{
   base_platform_fee_decimal_part, base_platform_fee_min_amount,
-  base_platform_fee_percent, config_marker, contract_address,
-  contract_payment_cred, contract_policy_id, input_placeholder,
-  listing_operator_payment_keyhash, maker_address, maker_payment_cred,
-  maker_payment_keyhash, operator_address, operator_payment_cred,
-  operator_payment_keyhash, output_placeholder, platform_address, taker_address,
-  taker_payment_cred, taker_payment_keyhash, utxo_ref_bootstrap,
-  utxo_ref_contract, utxo_ref_placeholder,
+  base_platform_fee_percent, config_marker, contract_address, contract_policy_id,
+  input_placeholder, listing_operator_payment_keyhash, operator_payment_keyhash,
+  output_placeholder, platform_address, utxo_ref_bootstrap,
 }
 use nse_housing
 use types.{Bootstrap, ConfigDatum}
@@ -26,8 +22,8 @@ const good_conf_datum =
     platform_fee_decimal: base_platform_fee_decimal_part,
     platform_fee_min_amount: base_platform_fee_min_amount,
     platform_fee_address: platform_address,
-    contract_operator_credential: operator_payment_keyhash,
-    listing_operator_credential: listing_operator_payment_keyhash,
+    contract_operator_keyhash: operator_payment_keyhash,
+    listing_operator_keyhash: listing_operator_payment_keyhash,
     is_market_open: False,
   }
 
@@ -46,6 +42,8 @@ type BadDatum {
   val: Int,
 }
 
+// aiken check -S -m tests/exchange/bootstrap
+
 // TODO: add output index check
 // Test suite for the contract launch phase
 // Bootstrapping can only be performed once, so we must ensure everything goes through without errors
@@ -63,7 +61,7 @@ type BadDatum {
 //   Minting [just 1]:
 //     - exactly one `contract_policy_id.contract_config_marker`
 //   Additional signers:
-//     - a signature corresponding to the `contract_operator_credential` field in the datum
+//     - a signature corresponding to the `contract_operator_keyhash` field in the datum
 
 // Validatiors: Minting only
 
@@ -189,7 +187,7 @@ test failed_no_marker_in_contract_output() fail {
   )
 }
 
-test failed_bad_datum_v1() fail {
+test failed_output_has_no_datum() fail {
   // Incorrect action violating the rule:
   //   Outputs:
   //     - exactly one output to the contract address containing:
@@ -208,7 +206,7 @@ test failed_bad_datum_v1() fail {
   )
 }
 
-test failed_bad_datum_v2() fail {
+test failed_output_has_bad_datum() fail {
   // Incorrect action violating the rule:
   //   Outputs:
   //     - exactly one output to the contract address containing:
@@ -304,7 +302,7 @@ test failed_bad_minting_extra_asset() fail {
 test failed_bad_signature() fail {
   // Incorrect action violating the rule:
   //   Additional signers:
-  //     - a signature corresponding to the `contract_operator_credential` field in the datum
+  //     - a signature corresponding to the `contract_operator_keyhash` field in the datum
 
   try(
     Transaction {

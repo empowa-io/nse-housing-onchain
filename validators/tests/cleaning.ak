@@ -1,30 +1,23 @@
 use aiken/collection/list
-use aiken/interval.{after, before}
-use aiken/math.{pow}
-use cardano/address.{Address}
-use cardano/assets.{from_asset, from_lovelace, merge, negate, zero}
+use cardano/assets.{from_asset, from_lovelace, merge,}
 use cardano/transaction.{
-  InlineDatum, Input, NoDatum, Output, OutputReference, Transaction,
+  InlineDatum, Input,  Output, OutputReference, Transaction,
   placeholder as tx_placeholder,
 }
-use config.{
-  contract_bootstrap_utxo_hash, contract_bootstrap_utxo_index,
-  contract_config_marker, contract_order_marker, contract_order_min_ada,
-}
+
 use default.{
   base_platform_fee_decimal_part, base_platform_fee_min_amount,
   base_platform_fee_percent, config_marker, contract_address,
-  contract_payment_cred, contract_policy_id, input_placeholder, listing_marker,
-  listing_operator_payment_keyhash, maker_address, maker_payment_cred,
-  maker_payment_keyhash, operator_address, operator_payment_cred,
+    contract_policy_id, input_placeholder, listing_marker,
+  listing_operator_payment_keyhash,  
+    
   operator_payment_keyhash, order_marker, output_placeholder, platform_address,
-  taker_address, taker_payment_cred, taker_payment_keyhash, utxo_ref_bootstrap,
-  utxo_ref_contract, utxo_ref_placeholder,
+
 }
 use nse_housing
 use types.{
-  Bootstrap, Buy, Cleaning, ConfigDatum, ListingDatum, OrderChanging, OrderDatum,
-  OrderExecution, OrderPlacing, Sell,
+ Cleaning, ConfigDatum, 
+ 
 }
 
 const good_conf_datum =
@@ -33,8 +26,8 @@ const good_conf_datum =
     platform_fee_decimal: base_platform_fee_decimal_part,
     platform_fee_min_amount: base_platform_fee_min_amount,
     platform_fee_address: platform_address,
-    contract_operator_credential: operator_payment_keyhash,
-    listing_operator_credential: listing_operator_payment_keyhash,
+    contract_operator_keyhash: operator_payment_keyhash,
+    listing_operator_keyhash: listing_operator_payment_keyhash,
     is_market_open: True,
   }
 
@@ -90,7 +83,7 @@ const good_garbage_input2 =
 //   Minting:
 //     - minting is prohibited as such and will not be possible because the Mint validator will not support the corresponding mode
 //   Additional signers:
-//     - a signature corresponding to the `contract_operator_credential` field in the config UTXO datum
+//     - a signature corresponding to the `contract_operator_keyhash` field in the config UTXO datum
 
 // Validatiors: Spending only
 
@@ -269,7 +262,7 @@ test fail_missing_operator_signature() fail {
   // Incorrect action violating the rule:
   // A correct order changing transaction must contain:
   //   Additional signers:
-  //     - a signature corresponding to the `contract_operator_credential` field in the config UTXO datum
+  //     - a signature corresponding to the `contract_operator_keyhash` field in the config UTXO datum
 
   // The user did not provide the operator signature and is trying to bypass authentication
   try(

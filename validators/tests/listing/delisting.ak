@@ -1,29 +1,19 @@
 use aiken/collection/list
-use cardano/address.{Address}
 use cardano/assets.{from_asset, merge, negate}
 use cardano/transaction.{
-  InlineDatum, Input, NoDatum, Output, OutputReference, Transaction,
+  InlineDatum, Input, Output, OutputReference, Transaction,
   placeholder as tx_placeholder,
 }
-use config.{
-  contract_bootstrap_utxo_hash, contract_bootstrap_utxo_index,
-  contract_config_marker, contract_order_marker, contract_order_min_ada,
-}
+use config.{contract_config_marker}
 use default.{
   base_platform_fee_decimal_part, base_platform_fee_min_amount,
-  base_platform_fee_percent, config_marker, contract_address,
-  contract_payment_cred, contract_policy_id, input_placeholder, listing_marker,
-  listing_operator_payment_keyhash, maker_address, maker_payment_cred,
-  maker_payment_keyhash, operator_address, operator_payment_cred,
-  operator_payment_keyhash, order_marker, output_placeholder, platform_address,
-  taker_address, taker_payment_cred, taker_payment_keyhash, utxo_ref_bootstrap,
-  utxo_ref_contract, utxo_ref_placeholder,
+  base_platform_fee_percent, contract_address, contract_policy_id,
+  input_placeholder, listing_marker, listing_operator_payment_keyhash,
+   operator_payment_keyhash,  output_placeholder,
+  platform_address, taker_address, taker_payment_keyhash,
 }
 use nse_housing
-use types.{
-  Bootstrap, Buy, ConfigDatum, Delisting, ListingDatum, OrderChanging,
-  OrderDatum, OrderExecution, OrderPlacing, Sell,
-}
+use types.{ConfigDatum, Delisting, ListingDatum}
 
 const approved_policy_id = "approved policy"
 
@@ -35,8 +25,8 @@ const good_conf_datum =
     platform_fee_decimal: base_platform_fee_decimal_part,
     platform_fee_min_amount: base_platform_fee_min_amount,
     platform_fee_address: platform_address,
-    contract_operator_credential: operator_payment_keyhash,
-    listing_operator_credential: listing_operator_payment_keyhash,
+    contract_operator_keyhash: operator_payment_keyhash,
+    listing_operator_keyhash: listing_operator_payment_keyhash,
     is_market_open: True,
   }
 
@@ -82,9 +72,6 @@ const good_listing_input_no_wildcard =
     },
   }
 
-type BadDatum {
-  val: Int,
-}
 
 // Test suite for the asset delisting action
 //  - Works as the inverse of listing:
@@ -132,7 +119,7 @@ fn try(tx: Transaction, utxos: List<Input>) -> Bool {
     )
 
   and {
-    nse_housing.exchange.mint(Delisting, contract_policy_id, tx),
+    nse_housing.listing.mint(Delisting, contract_policy_id, tx),
     spending_validation,
   }
 }
@@ -201,7 +188,7 @@ test failed_bad_conf_reference_input() fail {
   let bad_conf_datum =
     ConfigDatum {
       ..good_conf_datum,
-      listing_operator_credential: taker_payment_keyhash,
+      listing_operator_keyhash: taker_payment_keyhash,
     }
 
   let bad_config_reference_input =
