@@ -1,4 +1,5 @@
 use aiken/interval.{after, before}
+use aiken/math.{pow}
 use cardano/address.{Address}
 use cardano/assets.{from_asset, from_lovelace, merge, negate, zero}
 use cardano/transaction.{
@@ -10,36 +11,41 @@ use config.{
   contract_config_marker, contract_order_marker, contract_order_min_ada,
 }
 use default.{
-  base_fee_size, contract_address, contract_payment_cred, contract_policy_id,
-  input_placeholder, listing_verification_key, maker_address, maker_payment_cred,
+  base_platform_fee_decimal_part, base_platform_fee_min_amount,
+  base_platform_fee_percent, config_marker, contract_address,
+  contract_payment_cred, contract_policy_id, input_placeholder, listing_marker,
+  listing_operator_payment_keyhash, maker_address, maker_payment_cred,
   maker_payment_keyhash, operator_address, operator_payment_cred,
-  operator_payment_keyhash, output_placeholder, taker_address,
-  taker_payment_cred, taker_payment_keyhash, utxo_ref_bootstrap,
+  operator_payment_keyhash, order_marker, output_placeholder, platform_address,
+  taker_address, taker_payment_cred, taker_payment_keyhash, utxo_ref_bootstrap,
   utxo_ref_contract, utxo_ref_placeholder,
 }
 use nse_housing
 use types.{
-  Bootstrap, Buy, ConfigDatum, ContractDatum, ListingDatum, OrderChanging,
-  OrderDatum, OrderExecution, OrderPlacing, Sell,
+  Bootstrap, Buy, ConfigDatum, ListingDatum, OrderChanging, OrderDatum,
+  OrderExecution, OrderPlacing, Sell,
 }
 
 const approved_policy_id = "approved policy"
 
 const approved_asset_name = "approved asset name"
 
-const order_marker = from_asset(contract_policy_id, contract_order_marker, 1)
-
-const config_marker = from_asset(contract_policy_id, contract_config_marker, 1)
-
 const order_asset_amount = 42
 
-const order_price_per_unit = 10
+const order_price_per_unit = 1_000_000
+
+const deal_amount_asset = 10
 
 const timeout = 10
 
-const fee = 10
+const base_fee =
+  base_platform_fee_percent / pow(10, base_platform_fee_decimal_part)
 
-const deal_amount_asset = 10
+const platform_fee_full_exec_amount =
+  from_lovelace(order_asset_amount * order_price_per_unit / ( 100 * base_fee ))
+
+const platform_fee_partial_exec_amount =
+  from_lovelace(deal_amount_asset * order_price_per_unit / ( 100 * base_fee ))
 
 const good_order_min_ada = from_lovelace(contract_order_min_ada)
 
@@ -73,9 +79,12 @@ const good_deal_asset_value_partial_exec =
 
 const good_conf_datum =
   ConfigDatum {
-    fee_size: base_fee_size,
+    platform_fee_percent: base_platform_fee_percent,
+    platform_fee_decimal: base_platform_fee_decimal_part,
+    platform_fee_min_amount: base_platform_fee_min_amount,
+    platform_fee_address: platform_address,
     contract_operator_credential: operator_payment_keyhash,
-    listing_verification_key,
+    listing_operator_credential: listing_operator_payment_keyhash,
     is_market_open: True,
   }
 
@@ -83,15 +92,10 @@ const good_listing_datum_no_wildcard =
   ListingDatum {
     listed_policy_id: approved_policy_id,
     listed_asset_name: Some(approved_asset_name),
-    listing_signature: #"f32d28558792a49a90571d4920b4df3d73576964b83967b5182b18fb3f0e09ad68511ffe99310ec7c75ca3cc5d94e20afc70aae5f2dba1a52410ad77680f070a",
   }
 
 const good_listing_datum_wildcard =
-  ListingDatum {
-    listed_policy_id: approved_policy_id,
-    listed_asset_name: None,
-    listing_signature: #"ab5d584d95f578cd16031304833a4cd018867877efa99702f87f8ed524889887ce18713077ee63fc0dca60573c20d48f65627bc1b63b28472c776b575b084d00",
-  }
+  ListingDatum { listed_policy_id: approved_policy_id, listed_asset_name: None }
 
 const good_config_reference_input =
   Input {
@@ -104,11 +108,14 @@ const good_config_reference_input =
     },
   }
 
+const good_listing_output =
+  Output { ..output_placeholder, value: listing_marker }
+
 const good_listing_reference_input_no_wildcard =
   Input {
     ..input_placeholder,
     output: Output {
-      ..output_placeholder,
+      ..good_listing_output,
       datum: InlineDatum(good_listing_datum_no_wildcard),
     },
   }
@@ -117,7 +124,7 @@ const good_listing_reference_input_wildcard =
   Input {
     ..input_placeholder,
     output: Output {
-      ..output_placeholder,
+      ..good_listing_output,
       datum: InlineDatum(good_listing_datum_wildcard),
     },
   }
@@ -168,6 +175,20 @@ const good_buy_order_datum_after =
     partial_fulfillment_allowed: True,
     order_timeout_date: 0,
     order_maker_credential: maker_payment_keyhash,
+  }
+
+const good_platform_fee_output_full_exec =
+  Output {
+    ..output_placeholder,
+    address: platform_address,
+    value: platform_fee_full_exec_amount,
+  }
+
+const good_platform_fee_output_partiall_exec =
+  Output {
+    ..output_placeholder,
+    address: platform_address,
+    value: platform_fee_partial_exec_amount,
   }
 
 const good_sell_order_input =
@@ -243,7 +264,8 @@ const good_buy_taker_output_full_exec =
   Output {
     ..output_placeholder,
     address: taker_address,
-    value: good_order_full_ada_value,
+    value: good_order_full_ada_value
+      |> merge(negate(platform_fee_full_exec_amount)),
   }
 
 const good_buy_order_output_partial_exec =
@@ -267,12 +289,16 @@ const good_buy_taker_output_partial_exec =
   Output {
     ..output_placeholder,
     address: taker_address,
-    value: good_deal_ada_value_partial_exec,
+    value: good_deal_ada_value_partial_exec
+      |> merge(negate(platform_fee_partial_exec_amount)),
   }
 
 type BadDatum {
   val: Int,
 }
+
+// TODO: execute order when market is closed
+// TODO: zero fees test
 
 // Test suite for the order exetution action
 //  - An order can be accepted by any Cardano user; authorization is not required
@@ -291,16 +317,20 @@ type BadDatum {
 //   Inputs[>=1]:
 //      - Exactly one input from the `contract_address` containing the order eUTxO (`contract_policy_id.contract_order_marker` + OrderDatum)
 //      - Any number of user inputs if needed (not validated)
-//   Outputs[>=2]:
+//   Outputs[>=3]:
 //     - exactly one output to the `maker_address` containing:
 //       - index 0
 //       - the amount of assets/ada paid by the taker depending on the contract type (Buy/Sell)
 //       - [optional] the order's `contract_order_min_ada` if the order was closed
-//     - exactly one output to the `taker_address` containing:
+//     - output to the `taker_address` containing:
 //       - index 1
 //       - the amount of assets/ada paid to the taker depending on the contract type (Buy/Sell)
-//     - [optional] exactly one output to the `contract_address` containing:
+//     -exactly one output to the platform address containing:
+//       - platform fee equals (base_platform_fee_percent/10^base_platform_fee_decimal_part)% payed by the taker
+//          - but not less than `platform_fee_min_amount` value, e.g. because we have to respect Cardano's min ada...
 //       - index 2
+//     - [optional] exactly one output to the `contract_address` containing:
+//       - index 3
 //       - 1 token `contract_policy_id.contract_order_marker`
 //       - a datum of type `OrderDatum` (correctly describing the current state of the order)
 //       - the required amount of locked assets depending on the order type (Buy/Sell)
@@ -327,9 +357,7 @@ type BadDatum {
 // Success cases
 
 fn try(tx: Transaction, utxo: Input) {
-  expect InlineDatum(datum) = utxo.output.datum
-  expect datum: ContractDatum = datum
-
+  let datum: Data = utxo.output.datum
   let spending_validation =
     nse_housing.exchange.spend(
       Some(datum),
@@ -359,7 +387,7 @@ test success_sell_full_execution() {
       inputs: [good_sell_order_input, input_placeholder],
       outputs: [
         good_sell_maker_output_full_exec, good_sell_taker_output_full_exec,
-        output_placeholder,
+        good_platform_fee_output_full_exec, output_placeholder,
       ],
       mint: negate(order_marker),
       validity_range: before(timeout),
@@ -379,6 +407,7 @@ test success_sell_partial_execution() {
       inputs: [good_sell_order_input, input_placeholder],
       outputs: [
         good_sell_maker_output_partial_exec, good_sell_taker_output_partial_exec,
+        good_platform_fee_output_partiall_exec,
         good_sell_order_output_partial_exec, output_placeholder,
       ],
       validity_range: before(timeout),
@@ -398,7 +427,7 @@ test success_buy_full_execution() {
       inputs: [good_buy_order_input, input_placeholder],
       outputs: [
         good_buy_maker_output_full_exec, good_buy_taker_output_full_exec,
-        output_placeholder,
+        good_platform_fee_output_full_exec, output_placeholder,
       ],
       mint: negate(order_marker),
       validity_range: before(timeout),
@@ -418,7 +447,8 @@ test success_buy_partial_execution() {
       inputs: [good_buy_order_input, input_placeholder],
       outputs: [
         good_buy_maker_output_partial_exec, good_buy_taker_output_partial_exec,
-        good_buy_order_output_partial_exec,
+        good_platform_fee_output_partiall_exec,
+        good_buy_order_output_partial_exec, output_placeholder,
       ],
       validity_range: before(timeout),
     },
@@ -427,6 +457,80 @@ test success_buy_partial_execution() {
 }
 
 // Failed common cases (doesn't matter buy or sell, full or partial)
+test failed_garbage_at_order_output() fail {
+  // The contract output containing the order must not contain foreign assets
+  let bad_sell_order_output_partial_exec =
+    Output {
+      ..good_sell_order_output_partial_exec,
+      value: good_sell_order_output_partial_exec.value
+        |> merge(from_asset("unknown policy", "unknown asset name", 1)),
+    }
+  try(
+    Transaction {
+      ..tx_placeholder,
+      reference_inputs: [
+        good_config_reference_input, good_listing_reference_input_wildcard,
+      ],
+      inputs: [good_sell_order_input, input_placeholder],
+      outputs: [
+        good_sell_maker_output_partial_exec, good_sell_taker_output_partial_exec,
+        good_platform_fee_output_partiall_exec,
+        bad_sell_order_output_partial_exec, output_placeholder,
+      ],
+      validity_range: before(timeout),
+    },
+    good_sell_order_input,
+  )
+}
+
+test failed_garbage_at_maker_output() fail {
+  // The maker output receiving payment must not contain foreign assets
+  let bad_sell_maker_output_partial_exec =
+    Output {
+      ..good_sell_maker_output_partial_exec,
+      value: good_sell_maker_output_partial_exec.value
+        |> merge(from_asset("unknown policy", "unknown asset name", 1)),
+    }
+  try(
+    Transaction {
+      ..tx_placeholder,
+      reference_inputs: [
+        good_config_reference_input, good_listing_reference_input_wildcard,
+      ],
+      inputs: [good_sell_order_input, input_placeholder],
+      outputs: [
+        bad_sell_maker_output_partial_exec, good_sell_taker_output_partial_exec,
+        good_platform_fee_output_partiall_exec,
+        good_sell_order_output_partial_exec, output_placeholder,
+      ],
+      validity_range: before(timeout),
+    },
+    good_sell_order_input,
+  )
+}
+
+test failed_missed_platform_fee() fail {
+  // Incorrect action violating the rule:
+  //     -exactly one output to the platform address containing:
+  //       - platform fee equals (base_platform_fee_percent/10^base_platform_fee_decimal_part)% payed by the taker
+  //          - but not less than `platform_fee_min_amount` value, e.g. because we have to respect Cardano's min ada...
+  try(
+    Transaction {
+      ..tx_placeholder,
+      reference_inputs: [
+        good_config_reference_input, good_listing_reference_input_wildcard,
+      ],
+      inputs: [good_sell_order_input, input_placeholder],
+      outputs: [
+        good_sell_maker_output_partial_exec, good_sell_taker_output_partial_exec,
+        good_sell_order_output_partial_exec, output_placeholder,
+      ],
+      validity_range: before(timeout),
+    },
+    good_sell_order_input,
+  )
+}
+
 test fail_missed_config_utxo_ref() fail {
   // Incorrect action violating the rule:
   //   Reference inputs[2]:
@@ -440,7 +544,7 @@ test fail_missed_config_utxo_ref() fail {
       inputs: [good_sell_order_input, input_placeholder],
       outputs: [
         good_sell_maker_output_full_exec, good_sell_taker_output_full_exec,
-        output_placeholder,
+        good_platform_fee_output_full_exec, output_placeholder,
       ],
       mint: negate(order_marker),
       validity_range: before(timeout),
@@ -462,7 +566,7 @@ test fail_missed_listing_utxo_ref() fail {
       inputs: [good_sell_order_input, input_placeholder],
       outputs: [
         good_sell_maker_output_full_exec, good_sell_taker_output_full_exec,
-        output_placeholder,
+        good_platform_fee_output_full_exec, output_placeholder,
       ],
       mint: negate(order_marker),
       validity_range: before(timeout),
@@ -485,7 +589,7 @@ test fail_no_ref_utxos() fail {
       inputs: [good_sell_order_input, input_placeholder],
       outputs: [
         good_sell_maker_output_full_exec, good_sell_taker_output_full_exec,
-        output_placeholder,
+        good_platform_fee_output_full_exec, output_placeholder,
       ],
       mint: negate(order_marker),
       validity_range: before(timeout),
@@ -509,7 +613,7 @@ test fail_extra_reference_input() fail {
       inputs: [good_sell_order_input, input_placeholder],
       outputs: [
         good_sell_maker_output_full_exec, good_sell_taker_output_full_exec,
-        output_placeholder,
+        good_platform_fee_output_full_exec, output_placeholder,
       ],
       mint: negate(order_marker),
       validity_range: before(timeout),
@@ -549,7 +653,7 @@ test failed_bad_config_ref_address() fail {
       inputs: [good_sell_order_input, input_placeholder],
       outputs: [
         good_sell_maker_output_full_exec, good_sell_taker_output_full_exec,
-        output_placeholder,
+        good_platform_fee_output_full_exec, output_placeholder,
       ],
       mint: negate(order_marker),
       validity_range: before(timeout),
@@ -593,7 +697,7 @@ test failed_bad_listing_ref() fail {
       inputs: [good_sell_order_input, input_placeholder],
       outputs: [
         good_sell_maker_output_full_exec, good_sell_taker_output_full_exec,
-        output_placeholder,
+        good_platform_fee_output_full_exec, output_placeholder,
       ],
       mint: negate(order_marker),
       validity_range: before(timeout),
@@ -617,7 +721,7 @@ test fail_many_order_inputs() fail {
       inputs: [good_sell_order_input, good_buy_order_input, input_placeholder],
       outputs: [
         good_sell_maker_output_full_exec, good_sell_taker_output_full_exec,
-        output_placeholder,
+        good_platform_fee_output_full_exec, output_placeholder,
       ],
       mint: negate(order_marker),
       validity_range: before(timeout),
@@ -641,7 +745,7 @@ test fail_no_marker_burning_after_full_exec() fail {
       inputs: [good_sell_order_input, input_placeholder],
       outputs: [
         good_sell_maker_output_full_exec, good_sell_taker_output_full_exec,
-        output_placeholder,
+        good_platform_fee_output_full_exec, output_placeholder,
       ],
       validity_range: before(timeout),
     },
@@ -664,7 +768,7 @@ test fail_marker_burning_after_partial_exec() fail {
       inputs: [good_sell_order_input, input_placeholder],
       outputs: [
         good_sell_maker_output_full_exec, good_sell_taker_output_full_exec,
-        output_placeholder,
+        good_platform_fee_output_full_exec, output_placeholder,
       ],
       validity_range: before(timeout),
       mint: negate(order_marker),
@@ -689,7 +793,7 @@ test fail_extra_aeets_minted() fail {
       inputs: [good_sell_order_input, input_placeholder],
       outputs: [
         good_sell_maker_output_full_exec, good_sell_taker_output_full_exec,
-        output_placeholder,
+        good_platform_fee_output_full_exec, output_placeholder,
       ],
       mint: order_marker,
       validity_range: before(timeout),
@@ -714,7 +818,7 @@ test fail_not_only_marker_was_burned() fail {
       inputs: [good_sell_order_input, input_placeholder],
       outputs: [
         good_sell_maker_output_full_exec, good_sell_taker_output_full_exec,
-        output_placeholder,
+        good_platform_fee_output_full_exec, output_placeholder,
       ],
       mint: negate(order_marker)
         |> merge(negate(config_marker)),
@@ -740,7 +844,7 @@ test fail_no_validity_range() fail {
       inputs: [good_sell_order_input, input_placeholder],
       outputs: [
         good_sell_maker_output_full_exec, good_sell_taker_output_full_exec,
-        output_placeholder,
+        good_platform_fee_output_full_exec, output_placeholder,
       ],
       mint: negate(order_marker),
     },
@@ -762,7 +866,10 @@ test fail_bad_outputs_count() fail {
         good_config_reference_input, good_listing_reference_input_wildcard,
       ],
       inputs: [good_sell_order_input, input_placeholder],
-      outputs: [good_sell_taker_output_full_exec],
+      outputs: [
+        output_placeholder, good_sell_taker_output_full_exec,
+        good_platform_fee_output_full_exec,
+      ],
       mint: negate(order_marker),
       validity_range: before(timeout),
     },
@@ -778,14 +885,8 @@ test fail_partial_execution_when_full_only_allowed() fail {
   // It does not matter whether it is a buy or sell; what matters is violating a setting common to both cases
   let good_sell_order_datum_before_full_only =
     OrderDatum {
-      order_type: Sell,
-      traded_asset_policy_id: approved_policy_id,
-      traded_asset_name: approved_asset_name,
-      traded_asset_amount: order_asset_amount,
-      traded_asset_price: order_price_per_unit,
+      ..good_sell_order_datum_before,
       partial_fulfillment_allowed: False,
-      order_timeout_date: timeout,
-      order_maker_credential: maker_payment_keyhash,
     }
 
   let good_sell_order_input_full_only =
@@ -806,6 +907,7 @@ test fail_partial_execution_when_full_only_allowed() fail {
       inputs: [good_sell_order_input_full_only, input_placeholder],
       outputs: [
         good_sell_maker_output_partial_exec, good_sell_taker_output_partial_exec,
+        good_platform_fee_output_partiall_exec,
         good_sell_order_output_partial_exec, output_placeholder,
       ],
       validity_range: before(timeout),
@@ -823,21 +925,15 @@ test fail_order_reconfiguration_attempt_change_owner() fail {
   // An attacker may try to override the order Datum to make its terms more favorable to themselves
   // In this case - change of the owner
 
-  let bad_sell_order_datum_partial_exec =
-    OrderDatum {
-      order_type: Sell,
-      traded_asset_policy_id: approved_policy_id,
-      traded_asset_name: approved_asset_name,
-      traded_asset_amount: order_asset_amount,
-      traded_asset_price: order_price_per_unit,
-      partial_fulfillment_allowed: True,
-      order_timeout_date: timeout,
-      order_maker_credential: taker_payment_keyhash,
-    }
   let bad_sell_order_output_partial_exec =
     Output {
       ..good_sell_order_output_partial_exec,
-      datum: InlineDatum(bad_sell_order_datum_partial_exec),
+      datum: InlineDatum(
+        OrderDatum {
+          ..good_sell_order_datum_after,
+          order_maker_credential: taker_payment_keyhash,
+        },
+      ),
     }
 
   try(
@@ -849,6 +945,7 @@ test fail_order_reconfiguration_attempt_change_owner() fail {
       inputs: [good_sell_order_input, input_placeholder],
       outputs: [
         good_sell_maker_output_partial_exec, good_sell_taker_output_partial_exec,
+        good_platform_fee_output_partiall_exec,
         bad_sell_order_output_partial_exec, output_placeholder,
       ],
       validity_range: before(timeout),
@@ -866,21 +963,15 @@ test fail_order_reconfiguration_attempt_change_price() fail {
   // An attacker may try to override the order Datum to make its terms more favorable to themselves
   // In this case - change of the price
 
-  let bad_sell_order_datum_partial_exec =
-    OrderDatum {
-      order_type: Sell,
-      traded_asset_policy_id: approved_policy_id,
-      traded_asset_name: approved_asset_name,
-      traded_asset_amount: order_asset_amount,
-      traded_asset_price: order_price_per_unit - 1,
-      partial_fulfillment_allowed: True,
-      order_timeout_date: timeout,
-      order_maker_credential: maker_payment_keyhash,
-    }
   let bad_sell_order_output_partial_exec =
     Output {
       ..good_sell_order_output_partial_exec,
-      datum: InlineDatum(bad_sell_order_datum_partial_exec),
+      datum: InlineDatum(
+        OrderDatum {
+          ..good_sell_order_datum_after,
+          traded_asset_price: order_price_per_unit - 1,
+        },
+      ),
     }
 
   try(
@@ -892,6 +983,7 @@ test fail_order_reconfiguration_attempt_change_price() fail {
       inputs: [good_sell_order_input, input_placeholder],
       outputs: [
         good_sell_maker_output_partial_exec, good_sell_taker_output_partial_exec,
+        good_platform_fee_output_partiall_exec,
         bad_sell_order_output_partial_exec, output_placeholder,
       ],
       validity_range: before(timeout),
@@ -910,23 +1002,16 @@ test fail_order_reconfiguration_attempt_change_asset_amount() fail {
   // In this case - change of the order volume to take the "extra" for themselves
   // It is important to note that this particular change is usually legitimate if it matches the trade size
 
-  let bad_sell_order_datum_partial_exec =
-    OrderDatum {
-      order_type: Sell,
-      traded_asset_policy_id: approved_policy_id,
-      traded_asset_name: approved_asset_name,
-      traded_asset_amount: order_asset_amount - deal_amount_asset - 1,
-      traded_asset_price: order_price_per_unit,
-      partial_fulfillment_allowed: True,
-      order_timeout_date: timeout,
-      order_maker_credential: maker_payment_keyhash,
-    }
   let bad_sell_order_output_partial_exec =
     Output {
       ..good_sell_order_output_partial_exec,
-      datum: InlineDatum(bad_sell_order_datum_partial_exec),
+      datum: InlineDatum(
+        OrderDatum {
+          ..good_sell_order_datum_after,
+          traded_asset_amount: order_asset_amount - deal_amount_asset - 1,
+        },
+      ),
     }
-
   try(
     Transaction {
       ..tx_placeholder,
@@ -936,6 +1021,7 @@ test fail_order_reconfiguration_attempt_change_asset_amount() fail {
       inputs: [good_sell_order_input, input_placeholder],
       outputs: [
         good_sell_maker_output_partial_exec, good_sell_taker_output_partial_exec,
+        good_platform_fee_output_partiall_exec,
         bad_sell_order_output_partial_exec, output_placeholder,
       ],
       validity_range: before(timeout),
@@ -953,21 +1039,15 @@ test fail_order_reconfiguration_attempt_change_policy_id() fail {
   // An attacker may try to override the order Datum to make its terms more favorable to themselves
   // In this case - change of the `policy_id` in order to substitute the asset with a fake one
 
-  let bad_sell_order_datum_partial_exec =
-    OrderDatum {
-      order_type: Sell,
-      traded_asset_policy_id: "bad policy_id",
-      traded_asset_name: approved_asset_name,
-      traded_asset_amount: order_asset_amount,
-      traded_asset_price: order_price_per_unit,
-      partial_fulfillment_allowed: True,
-      order_timeout_date: timeout,
-      order_maker_credential: maker_payment_keyhash,
-    }
   let bad_sell_order_output_partial_exec =
     Output {
       ..good_sell_order_output_partial_exec,
-      datum: InlineDatum(bad_sell_order_datum_partial_exec),
+      datum: InlineDatum(
+        OrderDatum {
+          ..good_sell_order_datum_after,
+          traded_asset_policy_id: "bad policy_id",
+        },
+      ),
     }
 
   try(
@@ -979,6 +1059,7 @@ test fail_order_reconfiguration_attempt_change_policy_id() fail {
       inputs: [good_sell_order_input, input_placeholder],
       outputs: [
         good_sell_maker_output_partial_exec, good_sell_taker_output_partial_exec,
+        good_platform_fee_output_partiall_exec,
         bad_sell_order_output_partial_exec, output_placeholder,
       ],
       validity_range: before(timeout),
@@ -996,21 +1077,15 @@ test fail_order_reconfiguration_attempt_change_asset_name() fail {
   // An attacker may try to override the order Datum to make its terms more favorable to themselves
   // In this case - change of the asset name
 
-  let bad_sell_order_datum_partial_exec =
-    OrderDatum {
-      order_type: Sell,
-      traded_asset_policy_id: approved_policy_id,
-      traded_asset_name: "Bad asset name",
-      traded_asset_amount: order_asset_amount,
-      traded_asset_price: order_price_per_unit,
-      partial_fulfillment_allowed: True,
-      order_timeout_date: timeout,
-      order_maker_credential: maker_payment_keyhash,
-    }
   let bad_sell_order_output_partial_exec =
     Output {
       ..good_sell_order_output_partial_exec,
-      datum: InlineDatum(bad_sell_order_datum_partial_exec),
+      datum: InlineDatum(
+        OrderDatum {
+          ..good_sell_order_datum_after,
+          traded_asset_name: "Bad asset name",
+        },
+      ),
     }
 
   try(
@@ -1022,6 +1097,7 @@ test fail_order_reconfiguration_attempt_change_asset_name() fail {
       inputs: [good_sell_order_input, input_placeholder],
       outputs: [
         good_sell_maker_output_partial_exec, good_sell_taker_output_partial_exec,
+        good_platform_fee_output_partiall_exec,
         bad_sell_order_output_partial_exec, output_placeholder,
       ],
       validity_range: before(timeout),
@@ -1039,21 +1115,12 @@ test fail_order_reconfiguration_attempt_change_order_type() fail {
   // An attacker may try to override the order Datum to make its terms more favorable to themselves
   // In this case - change of the order type
 
-  let bad_sell_order_datum_partial_exec =
-    OrderDatum {
-      order_type: Buy,
-      traded_asset_policy_id: approved_policy_id,
-      traded_asset_name: approved_asset_name,
-      traded_asset_amount: order_asset_amount,
-      traded_asset_price: order_price_per_unit,
-      partial_fulfillment_allowed: True,
-      order_timeout_date: timeout,
-      order_maker_credential: maker_payment_keyhash,
-    }
   let bad_sell_order_output_partial_exec =
     Output {
       ..good_sell_order_output_partial_exec,
-      datum: InlineDatum(bad_sell_order_datum_partial_exec),
+      datum: InlineDatum(
+        OrderDatum { ..good_sell_order_datum_after, order_type: Buy },
+      ),
     }
 
   try(
@@ -1065,6 +1132,7 @@ test fail_order_reconfiguration_attempt_change_order_type() fail {
       inputs: [good_sell_order_input, input_placeholder],
       outputs: [
         good_sell_maker_output_partial_exec, good_sell_taker_output_partial_exec,
+        good_platform_fee_output_partiall_exec,
         bad_sell_order_output_partial_exec, output_placeholder,
       ],
       validity_range: before(timeout),
@@ -1082,21 +1150,15 @@ test fail_order_reconfiguration_attempt_change_partial_execution_mode() fail {
   // An attacker may try to override the order Datum to make its terms more favorable to themselves
   // In this case - change of `partial_fulfillment_allowed`
 
-  let bad_sell_order_datum_partial_exec =
-    OrderDatum {
-      order_type: Sell,
-      traded_asset_policy_id: approved_policy_id,
-      traded_asset_name: approved_asset_name,
-      traded_asset_amount: order_asset_amount,
-      traded_asset_price: order_price_per_unit,
-      partial_fulfillment_allowed: False,
-      order_timeout_date: timeout,
-      order_maker_credential: maker_payment_keyhash,
-    }
   let bad_sell_order_output_partial_exec =
     Output {
       ..good_sell_order_output_partial_exec,
-      datum: InlineDatum(bad_sell_order_datum_partial_exec),
+      datum: InlineDatum(
+        OrderDatum {
+          ..good_sell_order_datum_after,
+          partial_fulfillment_allowed: False,
+        },
+      ),
     }
 
   try(
@@ -1108,6 +1170,7 @@ test fail_order_reconfiguration_attempt_change_partial_execution_mode() fail {
       inputs: [good_sell_order_input, input_placeholder],
       outputs: [
         good_sell_maker_output_partial_exec, good_sell_taker_output_partial_exec,
+        good_platform_fee_output_partiall_exec,
         bad_sell_order_output_partial_exec, output_placeholder,
       ],
       validity_range: before(timeout),
@@ -1125,21 +1188,15 @@ test fail_order_reconfiguration_attempt_change_timeout() fail {
   // An attacker may try to override the order Datum to make its terms more favorable to themselves
   // In this case - change of the timeout
 
-  let bad_sell_order_datum_partial_exec =
-    OrderDatum {
-      order_type: Sell,
-      traded_asset_policy_id: approved_policy_id,
-      traded_asset_name: approved_asset_name,
-      traded_asset_amount: order_asset_amount,
-      traded_asset_price: order_price_per_unit,
-      partial_fulfillment_allowed: True,
-      order_timeout_date: timeout + 1,
-      order_maker_credential: maker_payment_keyhash,
-    }
   let bad_sell_order_output_partial_exec =
     Output {
       ..good_sell_order_output_partial_exec,
-      datum: InlineDatum(bad_sell_order_datum_partial_exec),
+      datum: InlineDatum(
+        OrderDatum {
+          ..good_sell_order_datum_after,
+          order_timeout_date: timeout + 1,
+        },
+      ),
     }
 
   try(
@@ -1151,6 +1208,7 @@ test fail_order_reconfiguration_attempt_change_timeout() fail {
       inputs: [good_sell_order_input, input_placeholder],
       outputs: [
         good_sell_maker_output_partial_exec, good_sell_taker_output_partial_exec,
+        good_platform_fee_output_partiall_exec,
         bad_sell_order_output_partial_exec, output_placeholder,
       ],
       validity_range: before(timeout),
@@ -1182,8 +1240,9 @@ test fail_bad_outputs_ordering_V1() fail {
       ],
       inputs: [good_sell_order_input, input_placeholder],
       outputs: [
-        good_sell_order_output_partial_exec, good_sell_maker_output_partial_exec,
-        good_sell_taker_output_partial_exec, output_placeholder,
+        good_sell_order_output_partial_exec, good_sell_taker_output_partial_exec,
+        good_platform_fee_output_partiall_exec,
+        good_sell_maker_output_partial_exec, output_placeholder,
       ],
       validity_range: before(timeout),
     },
@@ -1214,8 +1273,9 @@ test fail_bad_outputs_ordering_V2() fail {
       ],
       inputs: [good_sell_order_input, input_placeholder],
       outputs: [
-        good_sell_maker_output_partial_exec, good_sell_order_output_partial_exec,
-        output_placeholder,
+        good_sell_order_output_partial_exec, good_sell_taker_output_partial_exec,
+        good_platform_fee_output_partiall_exec,
+        good_sell_maker_output_partial_exec, output_placeholder,
       ],
       validity_range: before(timeout),
     },
@@ -1247,6 +1307,7 @@ test fail_bad_contract_output_stolen_marker() fail {
       inputs: [good_sell_order_input, input_placeholder],
       outputs: [
         good_sell_maker_output_partial_exec, good_sell_taker_output_partial_exec,
+        good_platform_fee_output_partiall_exec,
         bad_sell_order_output_partial_exec, output_placeholder,
       ],
       validity_range: before(timeout),
@@ -1274,6 +1335,7 @@ test fail_bad_contract_output_no_datum() fail {
       inputs: [good_sell_order_input, input_placeholder],
       outputs: [
         good_sell_maker_output_partial_exec, good_sell_taker_output_partial_exec,
+        good_platform_fee_output_partiall_exec,
         bad_sell_order_output_partial_exec, output_placeholder,
       ],
       validity_range: before(timeout),
@@ -1305,6 +1367,7 @@ test fail_bad_contract_output_wrong_datum() fail {
       inputs: [good_sell_order_input, input_placeholder],
       outputs: [
         good_sell_maker_output_partial_exec, good_sell_taker_output_partial_exec,
+        good_platform_fee_output_partiall_exec,
         bad_sell_order_output_partial_exec, output_placeholder,
       ],
       validity_range: before(timeout),
@@ -1350,6 +1413,7 @@ test fail_sell_bad_maker_output_stolen_funds_partial_exec() fail {
       inputs: [good_sell_order_input, input_placeholder],
       outputs: [
         bad_sell_maker_output_partial_exec, bad_sell_taker_output_partial_exec,
+        good_platform_fee_output_partiall_exec,
         good_sell_order_output_partial_exec, output_placeholder,
       ],
       validity_range: before(timeout),
@@ -1391,6 +1455,7 @@ test fail_sell_bad_maker_output_funds_sent_to_contract_partial_exec() fail {
       inputs: [good_sell_order_input, input_placeholder],
       outputs: [
         bad_sell_maker_output_partial_exec, good_sell_taker_output_partial_exec,
+        good_platform_fee_output_partiall_exec,
         bad_sell_order_output_partial_exec, output_placeholder,
       ],
       validity_range: before(timeout),
@@ -1432,7 +1497,7 @@ test fail_sell_bad_maker_output_stolen_funds_full_exec() fail {
       inputs: [good_sell_order_input, input_placeholder],
       outputs: [
         bad_sell_maker_output_full_exec, bad_sell_taker_output_full_exec,
-        output_placeholder,
+        good_platform_fee_output_full_exec, output_placeholder,
       ],
       mint: negate(order_marker),
       validity_range: before(timeout),
@@ -1475,6 +1540,7 @@ test fail_buy_bad_maker_output_stolen_funds_partial_exec() fail {
       inputs: [good_buy_order_input, input_placeholder],
       outputs: [
         bad_buy_maker_output_partial_exec, bad_buy_taker_output_partial_exec,
+        good_platform_fee_output_partiall_exec,
         good_buy_order_output_partial_exec, output_placeholder,
       ],
       validity_range: before(timeout),
@@ -1518,6 +1584,7 @@ test fail_buy_bad_maker_output_funds_sent_to_contract_partial_exec() fail {
       inputs: [good_buy_order_input, input_placeholder],
       outputs: [
         bad_buy_maker_output_partial_exec, good_buy_taker_output_partial_exec,
+        good_platform_fee_output_partiall_exec,
         bad_buy_order_output_partial_exec, output_placeholder,
       ],
       validity_range: before(timeout),
@@ -1558,7 +1625,7 @@ test fail_buy_bad_maker_output_stolen_funds_full_exec() fail {
       inputs: [good_buy_order_input, input_placeholder],
       outputs: [
         bad_buy_maker_output_full_exec, bad_buy_taker_output_full_exec,
-        output_placeholder,
+        good_platform_fee_output_full_exec, output_placeholder,
       ],
       mint: negate(order_marker),
       validity_range: before(timeout),
@@ -1591,6 +1658,7 @@ test fail_stolen_order_min_ada_partial_exec() fail {
       inputs: [good_sell_order_input, input_placeholder],
       outputs: [
         good_sell_maker_output_partial_exec, good_sell_taker_output_partial_exec,
+        good_platform_fee_output_partiall_exec,
         bad_sell_order_output_partial_exec, output_placeholder,
       ],
       validity_range: before(timeout),
@@ -1623,7 +1691,7 @@ test fail_stolen_order_min_ada_full_exec() fail {
       inputs: [good_sell_order_input, input_placeholder],
       outputs: [
         bad_sell_maker_output_full_exec, good_sell_taker_output_full_exec,
-        output_placeholder,
+        good_platform_fee_output_full_exec, output_placeholder,
       ],
       mint: negate(order_marker),
       validity_range: before(timeout),
@@ -1657,6 +1725,7 @@ test failed_sell_buy_order_output_stolen_ada() fail {
       inputs: [good_sell_order_input, input_placeholder],
       outputs: [
         good_sell_maker_output_partial_exec, good_sell_taker_output_partial_exec,
+        good_platform_fee_output_partiall_exec,
         bad_sell_order_output_partial_exec, output_placeholder,
       ],
       validity_range: before(timeout),
@@ -1689,60 +1758,11 @@ test failed_sell_buy_order_output_stolen_assets() fail {
       inputs: [good_buy_order_input, input_placeholder],
       outputs: [
         good_buy_maker_output_partial_exec, good_buy_taker_output_partial_exec,
+        good_platform_fee_output_partiall_exec,
         bad_buy_order_output_partial_exec, output_placeholder,
       ],
       validity_range: before(timeout),
     },
     good_buy_order_input,
-  )
-}
-
-test failed_garbage_at_order_output() fail {
-  // The contract output containing the order must not contain foreign assets
-  let bad_sell_order_output_partial_exec =
-    Output {
-      ..good_sell_order_output_partial_exec,
-      value: good_sell_order_output_partial_exec.value
-        |> merge(from_asset("unknown policy", "unknown asset name", 1)),
-    }
-  try(
-    Transaction {
-      ..tx_placeholder,
-      reference_inputs: [
-        good_config_reference_input, good_listing_reference_input_wildcard,
-      ],
-      inputs: [good_sell_order_input, input_placeholder],
-      outputs: [
-        good_sell_maker_output_partial_exec, good_sell_taker_output_partial_exec,
-        bad_sell_order_output_partial_exec, output_placeholder,
-      ],
-      validity_range: before(timeout),
-    },
-    good_sell_order_input,
-  )
-}
-
-test failed_garbage_at_maker_output() fail {
-  // The maker output receiving payment must not contain foreign assets
-  let bad_sell_maker_output_partial_exec =
-    Output {
-      ..good_sell_maker_output_partial_exec,
-      value: good_sell_maker_output_partial_exec.value
-        |> merge(from_asset("unknown policy", "unknown asset name", 1)),
-    }
-  try(
-    Transaction {
-      ..tx_placeholder,
-      reference_inputs: [
-        good_config_reference_input, good_listing_reference_input_wildcard,
-      ],
-      inputs: [good_sell_order_input, input_placeholder],
-      outputs: [
-        bad_sell_maker_output_partial_exec, good_sell_taker_output_partial_exec,
-        good_sell_order_output_partial_exec, output_placeholder,
-      ],
-      validity_range: before(timeout),
-    },
-    good_sell_order_input,
   )
 }

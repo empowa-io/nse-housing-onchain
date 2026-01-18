@@ -10,26 +10,24 @@ use config.{
   contract_config_marker, contract_order_marker, contract_order_min_ada,
 }
 use default.{
-  base_fee_size, contract_address, contract_payment_cred, contract_policy_id,
-  input_placeholder, listing_verification_key, maker_address, maker_payment_cred,
+  base_platform_fee_decimal_part, base_platform_fee_min_amount,
+  base_platform_fee_percent, config_marker, contract_address,
+  contract_payment_cred, contract_policy_id, input_placeholder,
+  listing_operator_payment_keyhash, maker_address, maker_payment_cred,
   maker_payment_keyhash, operator_address, operator_payment_cred,
-  operator_payment_keyhash, output_placeholder, taker_address,
-  taker_payment_cred, taker_payment_keyhash, utxo_ref_bootstrap,
+  operator_payment_keyhash, order_marker, output_placeholder, platform_address,
+  taker_address, taker_payment_cred, taker_payment_keyhash, utxo_ref_bootstrap,
   utxo_ref_contract, utxo_ref_placeholder,
 }
 use nse_housing
 use types.{
-  Bootstrap, Buy, ConfigDatum, ContractDatum, ListingDatum, OrderCanceling,
-  OrderDatum, OrderPlacing, Sell,
+  Bootstrap, Buy, ConfigDatum, ListingDatum, OrderCanceling, OrderDatum,
+  OrderPlacing, Sell,
 }
 
 const approved_policy_id = "approved policy"
 
 const approved_asset_name = "approved asset name"
-
-const order_marker = from_asset(contract_policy_id, contract_order_marker, 1)
-
-const config_marker = from_asset(contract_policy_id, contract_config_marker, 1)
 
 const order_asset_amount = 42
 
@@ -53,9 +51,12 @@ const buy_order_datum =
 
 const conf_datum =
   ConfigDatum {
-    fee_size: base_fee_size,
+    platform_fee_percent: base_platform_fee_percent,
+    platform_fee_decimal: base_platform_fee_decimal_part,
+    platform_fee_min_amount: base_platform_fee_min_amount,
+    platform_fee_address: platform_address,
     contract_operator_credential: operator_payment_keyhash,
-    listing_verification_key,
+    listing_operator_credential: listing_operator_payment_keyhash,
     is_market_open: True,
   }
 
@@ -116,7 +117,10 @@ const good_maker_buy_output =
       order_asset_amount * order_price_per_unit + contract_order_min_ada,
     ),
   }
+
 // TODO: add output index check
+// TODO: cancel order when market is closed (operator only)
+
 // Test suite for the order canceling action
 //  - An order before the timeout expires can be closed either by the contract operator or the order owner
 //      - The order can be closed at any moment on demand
@@ -145,8 +149,7 @@ const good_maker_buy_output =
 // Validatiors: Minting + Spending
 
 fn try(tx: Transaction, utxo: Input) -> Bool {
-  expect InlineDatum(datum) = utxo.output.datum
-  expect datum: ContractDatum = datum
+  let datum: Data = utxo.output.datum
 
   and {
     nse_housing.exchange.mint(OrderCanceling, contract_policy_id, tx),

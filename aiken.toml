@@ -16,8 +16,9 @@ version = "v3.0.0"
 source = "github"
 
 [config.default]
-contract_config_marker = "CONF"
-contract_order_marker = "ORDER"
+contract_config_marker = "CNF"
+contract_order_marker = "ORD"
+contract_listing_marker = "LST"
 contract_order_min_ada = 2_000_000
 contract_bootstrap_utxo_index = 0
 
@@ -27,8 +28,9 @@ encoding = "hex"
 
 
 [config.mainnet]
-contract_config_marker = "CONF"
-contract_order_marker = "ORDER"
+contract_config_marker = "CNF"
+contract_order_marker = "ORD"
+contract_listing_marker = "LST"
 contract_order_min_ada = 2_000_000
 contract_bootstrap_utxo_index = 0
 

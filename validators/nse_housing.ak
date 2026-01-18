@@ -1,6 +1,6 @@
 use cardano/assets.{PolicyId}
 use cardano/transaction.{OutputReference, Transaction}
-use types.{ContractDatum, ContractMode}
+use types.{ContractMode}
 
 validator exchange {
   mint(_redeemer: ContractMode, _policy_id: PolicyId, _self: Transaction) {
@@ -8,7 +8,7 @@ validator exchange {
   }
 
   spend(
-    _datum: Option<ContractDatum>,
+    _datum: Option<Data>,
     _redeemer: ContractMode,
     _utxo: OutputReference,
     _self: Transaction,
@@ -27,7 +27,7 @@ validator listing {
   }
 
   spend(
-    _datum: Option<ContractDatum>,
+    _datum: Option<Data>,
     _redeemer: ContractMode,
     _utxo: OutputReference,
     _self: Transaction,

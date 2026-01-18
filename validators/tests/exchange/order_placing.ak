@@ -10,28 +10,38 @@ use config.{
   contract_config_marker, contract_order_marker, contract_order_min_ada,
 }
 use default.{
-  base_fee_size, contract_address, contract_payment_cred, contract_policy_id,
-  input_placeholder, listing_verification_key, maker_address, maker_payment_cred,
+  base_platform_fee_decimal_part, base_platform_fee_min_amount,
+  base_platform_fee_percent, config_marker, contract_address,
+  contract_payment_cred, contract_policy_id, input_placeholder, listing_marker,
+  listing_operator_payment_keyhash, maker_address, maker_payment_cred,
   maker_payment_keyhash, operator_address, operator_payment_cred,
-  operator_payment_keyhash, output_placeholder, taker_address,
-  taker_payment_cred, utxo_ref_bootstrap, utxo_ref_contract,
-  utxo_ref_placeholder,
+  operator_payment_keyhash, order_marker, output_placeholder, platform_address,
+  taker_address, taker_payment_cred, taker_payment_keyhash, utxo_ref_bootstrap,
+  utxo_ref_contract, utxo_ref_placeholder,
 }
 use nse_housing
 use types.{
-  Bootstrap, Buy, ConfigDatum, ContractDatum, ListingDatum, OrderDatum,
-  OrderPlacing, Sell,
+  Bootstrap, Buy, ConfigDatum, ListingDatum, OrderDatum, OrderPlacing, Sell,
 }
 
 const approved_policy_id = "approved policy"
 
 const approved_asset_name = "approved asset name"
 
+const order_asset_amount = 42
+
+const order_price_per_unit = 10
+
+const timeout = 10
+
 const good_conf_datum =
   ConfigDatum {
-    fee_size: base_fee_size,
+    platform_fee_percent: base_platform_fee_percent,
+    platform_fee_decimal: base_platform_fee_decimal_part,
+    platform_fee_min_amount: base_platform_fee_min_amount,
+    platform_fee_address: platform_address,
     contract_operator_credential: operator_payment_keyhash,
-    listing_verification_key,
+    listing_operator_credential: listing_operator_payment_keyhash,
     is_market_open: True,
   }
 
@@ -39,15 +49,10 @@ const good_listing_datum_no_wildcard =
   ListingDatum {
     listed_policy_id: approved_policy_id,
     listed_asset_name: Some(approved_asset_name),
-    listing_signature: #"f32d28558792a49a90571d4920b4df3d73576964b83967b5182b18fb3f0e09ad68511ffe99310ec7c75ca3cc5d94e20afc70aae5f2dba1a52410ad77680f070a",
   }
 
 const good_listing_datum_wildcard =
-  ListingDatum {
-    listed_policy_id: approved_policy_id,
-    listed_asset_name: None,
-    listing_signature: #"ab5d584d95f578cd16031304833a4cd018867877efa99702f87f8ed524889887ce18713077ee63fc0dca60573c20d48f65627bc1b63b28472c776b575b084d00",
-  }
+  ListingDatum { listed_policy_id: approved_policy_id, listed_asset_name: None }
 
 const good_config_reference_input =
   Input {
@@ -60,11 +65,18 @@ const good_config_reference_input =
     },
   }
 
+const good_listing_output =
+  Output {
+    ..output_placeholder,
+    address: contract_address,
+    value: listing_marker,
+  }
+
 const good_listing_reference_input_no_wildcard =
   Input {
     ..input_placeholder,
     output: Output {
-      ..output_placeholder,
+      ..good_listing_output,
       datum: InlineDatum(good_listing_datum_no_wildcard),
     },
   }
@@ -73,18 +85,10 @@ const good_listing_reference_input_wildcard =
   Input {
     ..input_placeholder,
     output: Output {
-      ..output_placeholder,
+      ..good_listing_output,
       datum: InlineDatum(good_listing_datum_wildcard),
     },
   }
-
-const order_marker = from_asset(contract_policy_id, contract_order_marker, 1)
-
-const order_asset_amount = 42
-
-const order_price_per_unit = 10
-
-const timeout = 10
 
 const good_sell_order_datum_with_timeout =
   OrderDatum {
@@ -159,10 +163,11 @@ type BadDatum {
   val: Int,
 }
 
-//TODO: check if `good_order_ada` were broken
-//TODO: check more than 2 references
-//TODO: traded_asset_price: 0
+// TODO: check if `good_order_ada` were broken
+// TODO: check more than 2 references
+// TODO: traded_asset_price: 0
 // TODO: add output index check
+// TODO: place_order when market is closed
 
 // Test suite for the order placing action
 // Order placing is not tied to the platform UI and can be performed by any user, including via CLI
