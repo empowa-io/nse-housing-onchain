@@ -14,5 +14,5 @@ jobs:
         with:
           version: v1.1.21
       # - run: aiken fmt --check
-      - run: aiken check -S -m tests/exchange/bootstrap
+      - run: aiken check -S -m tests/bootstrap -m tests/configuration
       # - run: aiken build

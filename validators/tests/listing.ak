@@ -96,7 +96,7 @@ type BadDatum {
 // Validatiors: Minting only
 
 fn try(tx: Transaction) -> Bool {
-  nse_housing.listing.mint(Listing, contract_policy_id, tx)
+  nse_housing.exchange.mint(Listing, contract_policy_id, tx)
 }
 
 // Success cases

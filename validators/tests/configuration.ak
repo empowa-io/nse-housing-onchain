@@ -59,7 +59,8 @@ type BadDatum {
   val: Int,
 }
 
-// TODO: add output index check
+// RUN: aiken check -S -m tests/exchange/configuration
+
 // Test suite for the contract reconfiguration
 // Technically, this is almost the same operation as bootstrap, differing only by:
 //  - forbidding minting/burning of `contract_policy_id.contract_config_marker`
@@ -166,6 +167,21 @@ test failed_operator_changed_without_old_signature() fail {
   )
 }
 
+test failed_bad_outputs_position() fail {
+  // Incorrect action violating the rule:
+  //   Outputs:
+  //       - index 0
+  try(
+    Transaction {
+      ..tx_placeholder,
+      inputs: [good_contract_config_input, input_placeholder],
+      outputs: [output_placeholder, good_contract_output],
+      extra_signatories: [operator_keyhash_new],
+    },
+    good_contract_config_input,
+  )
+}
+
 test failed_bad_inputs() fail {
   // Incorrect action violating the rule:
   //   Inputs:
@@ -207,7 +223,7 @@ test failed_bad_outputs() fail {
   )
 }
 
-test failed_bootstrap_bad_datum_v1() fail {
+test failed_no_datum() fail {
   // Incorrect action violating the rule:
   //   Outputs:
   //     - exactly one output to the contract address containing:
@@ -226,7 +242,7 @@ test failed_bootstrap_bad_datum_v1() fail {
   )
 }
 
-test failed_bootstrap_bad_datum_v2() fail {
+test failed_bad_datum() fail {
   // Incorrect action violating the rule:
   //   Outputs:
   //     - exactly one output to the contract address containing:

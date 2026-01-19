@@ -42,9 +42,8 @@ type BadDatum {
   val: Int,
 }
 
-// aiken check -S -m tests/exchange/bootstrap
+// RUN: aiken check -S -m tests/bootstrap
 
-// TODO: add output index check
 // Test suite for the contract launch phase
 // Bootstrapping can only be performed once, so we must ensure everything goes through without errors
 // Mostly checks that protect against human error in case the operator makes a mistake
@@ -161,6 +160,21 @@ test failed_many_contract_outputs() fail {
       ..tx_placeholder,
       inputs: [good_bootstrap_input],
       outputs: [good_contract_output, good_contract_output, output_placeholder],
+      mint: config_marker,
+      extra_signatories: [operator_payment_keyhash],
+    },
+  )
+}
+
+test failed_bad_outputs_position() fail {
+  // Incorrect action violating the rule:
+  //   Outputs:
+  //       - index 0
+  try(
+    Transaction {
+      ..tx_placeholder,
+      inputs: [good_bootstrap_input],
+      outputs: [output_placeholder, good_contract_output],
       mint: config_marker,
       extra_signatories: [operator_payment_keyhash],
     },

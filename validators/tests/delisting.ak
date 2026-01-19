@@ -119,7 +119,7 @@ fn try(tx: Transaction, utxos: List<Input>) -> Bool {
     )
 
   and {
-    nse_housing.listing.mint(Delisting, contract_policy_id, tx),
+    nse_housing.exchange.mint(Delisting, contract_policy_id, tx),
     spending_validation,
   }
 }

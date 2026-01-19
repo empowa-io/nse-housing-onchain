@@ -44,3 +44,6 @@ pub type ContractMode {
   OrderCanceling
   OrderExecution
 }
+
+pub type OutputRefOrPolicyId =
+  Data
