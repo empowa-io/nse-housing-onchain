@@ -1,24 +1,17 @@
 use aiken/collection/list
-use cardano/assets.{from_asset, from_lovelace, merge,}
+use cardano/assets.{from_asset, from_lovelace, merge}
 use cardano/transaction.{
-  InlineDatum, Input,  Output, OutputReference, Transaction,
+  InlineDatum, Input, Output, OutputReference, Transaction,
   placeholder as tx_placeholder,
 }
-
 use default.{
   base_platform_fee_decimal_part, base_platform_fee_min_amount,
-  base_platform_fee_percent, config_marker, contract_address,
-    contract_policy_id, input_placeholder, listing_marker,
-  listing_operator_payment_keyhash,  
-    
+  base_platform_fee_percent, config_marker, contract_address, contract_policy_id,
+  input_placeholder, listing_marker, listing_operator_payment_keyhash,
   operator_payment_keyhash, order_marker, output_placeholder, platform_address,
-
 }
 use nse_housing
-use types.{
- Cleaning, ConfigDatum, 
- 
-}
+use types.{Cleaning, ConfigDatum}
 
 const good_conf_datum =
   ConfigDatum {
@@ -94,10 +87,15 @@ fn try(tx: Transaction, utxos: List<Input>) -> Bool {
     utxos,
     True,
     fn(res, utxo) {
-      let datum: Data = utxo.output.datum
+      let contract_datum =
+        when utxo.output.datum is {
+          InlineDatum(datum) -> Some(datum)
+          _ -> None
+        }
+
       let spending_validation =
         nse_housing.exchange.spend(
-          Some(datum),
+          contract_datum,
           Cleaning,
           utxo.output_reference,
           tx,

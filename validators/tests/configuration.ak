@@ -88,9 +88,13 @@ type BadDatum {
 // Validatiors: Spending only
 
 fn try(tx: Transaction, utxo: Input) -> Bool {
-  let datum: Data = utxo.output.datum
+  let contract_datum =
+    when utxo.output.datum is {
+      InlineDatum(datum) -> Some(datum)
+      _ -> None
+    }
   nse_housing.exchange.spend(
-    Some(datum),
+    contract_datum,
     Configuration,
     utxo.output_reference,
     tx,

@@ -1,20 +1,15 @@
-
 use cardano/assets.{from_asset, from_lovelace, merge, negate}
 use cardano/transaction.{
-  InlineDatum, Input, NoDatum, Output,  Transaction,
+  InlineDatum, Input, NoDatum, Output, Transaction,
   placeholder as tx_placeholder,
 }
-use config.{
-   
-  contract_config_marker,  contract_order_min_ada,
-}
+use config.{contract_config_marker, contract_order_min_ada}
 use default.{
   base_platform_fee_decimal_part, base_platform_fee_min_amount,
   base_platform_fee_percent, config_marker, contract_address, input_placeholder,
   listing_marker, listing_operator_payment_keyhash, maker_payment_keyhash,
-   operator_payment_keyhash, order_marker,
-  output_placeholder, platform_address, taker_address, 
-  taker_payment_keyhash,
+  operator_payment_keyhash, order_marker, output_placeholder, platform_address,
+  taker_address, taker_payment_keyhash,
 }
 use nse_housing
 use types.{Buy, ConfigDatum, ListingDatum, OrderChanging, OrderDatum, Sell}
@@ -195,9 +190,13 @@ type BadDatum {
 // Validatiors: Spending only
 
 fn try(tx: Transaction, utxo: Input) -> Bool {
-  let datum: Data = utxo.output.datum
+  let contract_datum =
+    when utxo.output.datum is {
+      InlineDatum(datum) -> Some(datum)
+      _ -> None
+    }
   nse_housing.exchange.spend(
-    Some(datum),
+    contract_datum,
     OrderChanging,
     utxo.output_reference,
     tx,

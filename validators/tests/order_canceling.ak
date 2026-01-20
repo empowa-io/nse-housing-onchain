@@ -127,12 +127,16 @@ const good_maker_buy_output =
 // Validatiors: Minting + Spending
 
 fn try(tx: Transaction, utxo: Input) -> Bool {
-  let datum: Data = utxo.output.datum
+  let contract_datum =
+    when utxo.output.datum is {
+      InlineDatum(datum) -> Some(datum)
+      _ -> None
+    }
 
   and {
     nse_housing.exchange.mint(OrderCanceling, contract_policy_id, tx),
     nse_housing.exchange.spend(
-      Some(datum),
+      contract_datum,
       OrderCanceling,
       utxo.output_reference,
       tx,

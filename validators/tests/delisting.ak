@@ -9,8 +9,8 @@ use default.{
   base_platform_fee_decimal_part, base_platform_fee_min_amount,
   base_platform_fee_percent, contract_address, contract_policy_id,
   input_placeholder, listing_marker, listing_operator_payment_keyhash,
-   operator_payment_keyhash,  output_placeholder,
-  platform_address, taker_address, taker_payment_keyhash,
+  operator_payment_keyhash, output_placeholder, platform_address, taker_address,
+  taker_payment_keyhash,
 }
 use nse_housing
 use types.{ConfigDatum, Delisting, ListingDatum}
@@ -72,7 +72,6 @@ const good_listing_input_no_wildcard =
     },
   }
 
-
 // Test suite for the asset delisting action
 //  - Works as the inverse of listing:
 //      - listing UTXOs are consumed as inputs
@@ -102,10 +101,14 @@ fn try(tx: Transaction, utxos: List<Input>) -> Bool {
       utxos,
       True,
       fn(res, utxo) {
-        let datum: Data = utxo.output.datum
+        let contract_datum =
+          when utxo.output.datum is {
+            InlineDatum(datum) -> Some(datum)
+            _ -> None
+          }
         let spending_validation =
           nse_housing.exchange.spend(
-            Some(datum),
+            contract_datum,
             Delisting,
             utxo.output_reference,
             tx,

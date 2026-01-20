@@ -72,6 +72,11 @@ type BadDatum {
   val: Int,
 }
 
+// TODO: empty policy_id
+// TODO: empty asset_name
+
+// RUN: aiken check -S -m tests/listing
+
 // Test suite for the asset listing action
 //  - Note: working with listings requires a separate `listing_operator_credential` role
 //  - This adds flexibility by allowing responsibilities to be split
@@ -81,7 +86,7 @@ type BadDatum {
 // It also covers potential attack vectors.
 
 // A correct order placing transaction must contain:
-//   Reference inputs[2]:
+//   Reference inputs:
 //     - Reference to the contract valid `config eUTxO`
 //   Outputs[>=1]:
 //     - one or many outputs to the contract address containing:
@@ -143,7 +148,7 @@ test success_listing_many_assets() {
 //Failed cases
 test failed_no_conf_reference_input() fail {
   // Incorrect action violating the rule:
-  //   Reference inputs[2]:
+  //   Reference inputs:
   //     - Reference to the contract valid `config eUTxO`
 
   // User forgot to include the correct config
@@ -160,7 +165,7 @@ test failed_no_conf_reference_input() fail {
 
 test failed_bad_conf_reference_input() fail {
   // Incorrect action violating the rule:
-  //   Reference inputs[2]:
+  //   Reference inputs:
   //     - Reference to the contract valid `config eUTxO`
 
   // User attached a third-party config to bypass authentication

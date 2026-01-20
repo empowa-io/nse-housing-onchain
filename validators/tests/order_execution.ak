@@ -347,10 +347,14 @@ type BadDatum {
 // Success cases
 
 fn try(tx: Transaction, utxo: Input) {
-  let datum: Data = utxo.output.datum
+  let contract_datum =
+    when utxo.output.datum is {
+      InlineDatum(datum) -> Some(datum)
+      _ -> None
+    }
   let spending_validation =
     nse_housing.exchange.spend(
-      Some(datum),
+      contract_datum,
       OrderExecution,
       utxo.output_reference,
       tx,

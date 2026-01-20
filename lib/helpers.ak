@@ -8,8 +8,8 @@ use cardano/assets.{
   merge, negate, zero,
 }
 use cardano/transaction.{
-  InlineDatum, Input, NoDatum, Output, OutputReference, Transaction, find_input,
-  placeholder as tx_placeholder,
+  Datum, InlineDatum, Input, NoDatum, Output, OutputReference, Transaction,
+  find_input, placeholder as tx_placeholder,
 }
 use config.{
   contract_bootstrap_utxo_hash, contract_bootstrap_utxo_index,
@@ -22,18 +22,30 @@ use types.{
   Sell,
 }
 
+fn unpack_datum(packed_datum: Data) -> Data {
+  if packed_datum is Option<Data> {
+    expect Some(datum) = packed_datum
+    datum
+  } else if packed_datum is Datum {
+    expect InlineDatum(datum) = packed_datum
+    datum
+  } else {
+    packed_datum
+  }
+}
+
 pub fn as_config_datum(datum: Data) -> ConfigDatum {
-  expect datum: ConfigDatum = datum
+  expect datum: ConfigDatum = unpack_datum(datum)
   datum
 }
 
 pub fn as_order_datum(datum: Data) -> OrderDatum {
-  expect datum: OrderDatum = datum
+  expect datum: OrderDatum = unpack_datum(datum)
   datum
 }
 
 pub fn as_listing_datum(datum: Data) -> ListingDatum {
-  expect datum: ListingDatum = datum
+  expect datum: ListingDatum = unpack_datum(datum)
   datum
 }
 

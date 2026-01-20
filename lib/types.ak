@@ -47,3 +47,6 @@ pub type ContractMode {
 
 pub type OutputRefOrPolicyId =
   Data
+
+pub type Marker =
+  ByteArray
