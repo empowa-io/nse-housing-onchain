@@ -103,6 +103,83 @@ fn validate_config_update(
   }
 }
 
+fn validate_listing_update(
+  tx: Transaction,
+  contract_policy_id: PolicyId,
+  mode: ContractMode,
+) -> Bool {
+  let Transaction {
+    reference_inputs: tx_ref_inputs,
+    inputs: tx_inputs,
+    outputs: tx_outputs,
+    mint: tx_mint,
+    extra_signatories: tx_extra_signs,
+    ..
+  } = tx
+
+  let contract_adress = Address(Script(contract_policy_id), None)
+
+  let (listings, markers_count) =
+    when mode is {
+      Listing -> {
+        let listings = tx_outputs |> find_outputs_by_address(contract_adress)
+        (listings, list.length(listings))
+      }
+
+      Delisting -> {
+        let listings =
+          tx_inputs |> to_outputs() |> find_outputs_by_address(contract_adress)
+        (listings, -list.length(listings))
+      }
+      _ -> fail
+    }
+
+  expect [config_ref_input] = tx_ref_inputs
+  let config_is_valid =
+    validate_marked_input(
+      config_ref_input,
+      contract_policy_id,
+      contract_config_marker,
+    )
+
+  let ConfigDatum { listing_operator_keyhash, .. } =
+    config_ref_input.output.datum |> as_config_datum()
+
+  let all_listings_are_valid =
+    listings
+      |> list.reduce(
+          True,
+          fn(result, Output { value, datum, .. }) {
+            let ListingDatum { listed_policy_id, listed_asset_name } =
+              datum |> as_listing_datum()
+            and {
+              result,
+              (listed_policy_id != "")?,
+              (listed_asset_name != Some(""))?,
+              (value
+                |> has_nft_strict(contract_policy_id, contract_listing_marker))?,
+            }
+          },
+        )
+
+  let markers_are_ok =
+    validate_markers_mint(
+      tx_mint,
+      contract_policy_id,
+      contract_listing_marker,
+      markers_count,
+    )
+
+  let action_is_authorized = [listing_operator_keyhash] == tx_extra_signs
+
+  and {
+    all_listings_are_valid?,
+    config_is_valid?,
+    markers_are_ok?,
+    action_is_authorized?,
+  }
+}
+
 fn validate_marked_input(
   marked_input: Input,
   contract_policy_id: PolicyId,
@@ -172,7 +249,7 @@ validator exchange {
           contract_policy_id,
           current_config_datum: None,
         )
-      Listing -> {
+      Listing ->
         // A correct order placing transaction must contain:
         //   Reference inputs:
         //     - Reference to the contract valid `config eUTxO`
@@ -185,59 +262,8 @@ validator exchange {
         //     - exactly 1 `contract_policy_id.contract_listing_marker` per contract output
         //   Additional signers:
         //     - a signature corresponding to the `listing_operator_credential` field in the reference utxo datum
+        validate_listing_update(tx, contract_policy_id, redeemer)
 
-        expect [config_ref_input] = tx_ref_inputs
-        let config_is_valid =
-          validate_marked_input(
-            config_ref_input,
-            contract_policy_id,
-            contract_config_marker,
-          )
-
-        let ConfigDatum { listing_operator_keyhash, .. } =
-          config_ref_input.output.datum |> as_config_datum()
-
-        let listings =
-          tx_outputs
-            |> find_outputs_by_address(contract_address)
-
-        let all_listings_are_valid =
-          listings
-            |> list.reduce(
-                True,
-                fn(result, Output { value, datum, .. }) {
-                  let ListingDatum { listed_policy_id, listed_asset_name } =
-                    datum |> as_listing_datum()
-                  and {
-                    result,
-                    (listed_policy_id != "")?,
-                    (listed_asset_name != Some(""))?,
-                    (value
-                      |> has_nft_strict(
-                          contract_policy_id,
-                          contract_listing_marker,
-                        ))?,
-                  }
-                },
-              )
-
-        let markers_are_ok =
-          validate_markers_mint(
-            tx_mint,
-            contract_policy_id,
-            contract_listing_marker,
-            list.length(listings),
-          )
-
-        let action_is_authorized = [listing_operator_keyhash] == tx_extra_signs
-
-        and {
-          all_listings_are_valid?,
-          config_is_valid?,
-          markers_are_ok?,
-          action_is_authorized?,
-        }
-      }
       Delisting ->
         // A correct delisting transaction must contain:
         //   Reference inputs[1]:
@@ -247,12 +273,13 @@ validator exchange {
         //       - 1 token `contract_policy_id.contract_listing_marker` per input
         //   Outputs[>=0]:
         //     - any number of outputs to other addresses if needed (not validated)
-        //     - no outputs containing `contract_policy_id.contract_listing_marker`
+        //      - no outputs containing `contract_policy_id.contract_listing_marker`
         //   Minting:
         //     - exactly -1 `contract_policy_id.contract_listing_marker` per listing input
         //   Additional signers:
         //     - a signature corresponding to the `listing_operator_credential` field in the reference utxo datum
-        False
+        validate_listing_update(tx, contract_policy_id, redeemer)
+
       _ -> False
     }
   }
@@ -263,6 +290,16 @@ validator exchange {
     spent_utxo: OutputReference,
     tx: Transaction,
   ) {
+    let Transaction {
+      reference_inputs: tx_ref_inputs,
+      inputs: tx_inputs,
+      outputs: tx_outputs,
+      validity_range: tx_validity_range,
+      mint: tx_mint,
+      extra_signatories: tx_extra_signs,
+      ..
+    } = tx
+
     let (contract_address, contract_policy_id) =
       discover_contract_addr_pid(tx, spent_utxo)
 
@@ -290,21 +327,15 @@ validator exchange {
           contract_policy_id,
           current_config_datum: spent_utxo_datum,
         )
+
       Delisting ->
-        // A correct delisting transaction must contain:
-        //   Reference inputs[1]:
-        //     - Reference to the contract valid `config eUTxO`
-        //   Inputs[>=1]:
-        //     - one or many inputs from the contract address containing:
-        //       - 1 token `contract_policy_id.contract_listing_marker` per input
-        //   Outputs[>=0]:
-        //     - any number of outputs to other addresses if needed (not validated)
-        //      - no outputs containing `contract_policy_id.contract_listing_marker`
-        //   Minting:
-        //     - exactly -1 `contract_policy_id.contract_listing_marker` per listing input
-        //   Additional signers:
-        //     - a signature corresponding to the `listing_operator_credential` field in the reference utxo datum
-        False
+        // Since the delisting process requires both Spend and Mint checks,
+        // validation can be implemented in just one sub-validator without code duplication.
+        // During delisting, markers must be burned, so the transaction must include
+        // burning markers on behalf of the contract.
+        // If this requirement is met, allow spending the UTXO, because the Mint
+        // sub-validator will be invoked next and perform the full validation.
+        assets.quantity_of(tx_mint, contract_policy_id, contract_listing_marker) < 0
       _ -> False
     }
   }

@@ -72,6 +72,8 @@ const good_listing_input_no_wildcard =
     },
   }
 
+// RUN: aiken check -S -m tests/delisting
+
 // Test suite for the asset delisting action
 //  - Works as the inverse of listing:
 //      - listing UTXOs are consumed as inputs
@@ -227,10 +229,9 @@ test failed_input_without_listing_marker() fail {
 
   let bad_listing_input =
     Input {
-      ..input_placeholder,
+      ..good_listing_input_wildcard,
       output: Output {
-        ..output_placeholder,
-        address: contract_address,
+        ..good_listing_input_wildcard.output,
         value: from_asset("any policy", "any asset", 1),
       },
     }
@@ -265,6 +266,26 @@ test failed_marker_burn_mismatch() fail {
       ],
       outputs: [output_placeholder],
       mint: negate(listing_marker),
+      extra_signatories: [listing_operator_payment_keyhash],
+    },
+    [good_listing_input_wildcard, good_listing_input_no_wildcard],
+  )
+}
+
+test failed_marker_burn_not_marker_only() fail {
+  // Incorrect action violating the rule:
+  //   Minting:
+  //     - exactly -1 `contract_policy_id.contract_listing_marker` per listing input
+
+  // User burned or minted something else other than marker
+  try(
+    Transaction {
+      ..tx_placeholder,
+      reference_inputs: [good_config_reference_input],
+      inputs: [good_listing_input_wildcard, input_placeholder],
+      outputs: [output_placeholder],
+      mint: negate(listing_marker)
+        |> merge(from_asset(contract_policy_id, "other asset", 1)),
       extra_signatories: [listing_operator_payment_keyhash],
     },
     [good_listing_input_wildcard, good_listing_input_no_wildcard],
