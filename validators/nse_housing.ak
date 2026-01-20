@@ -22,7 +22,7 @@ use helpers.{
   find_outputs_by_address, find_outputs_by_marker, to_outputs,
 }
 use types.{
-  Bootstrap, Buy, ConfigDatum, Configuration, ContractMode, Listing,
+  Bootstrap, Buy, ConfigDatum, Configuration, ContractMode, Delisting, Listing,
   ListingDatum, Marker, OrderChanging, OrderDatum, OrderExecution, OrderPlacing,
   OutputRefOrPolicyId, Sell,
 }
@@ -116,6 +116,26 @@ fn validate_marked_input(
   }
 }
 
+fn validate_markers_mint(
+  mint: Value,
+  contract_policy_id: PolicyId,
+  marker: Marker,
+  amount_limit: Int,
+) -> Bool {
+  let minting_by_contract_only = assets.policies(mint) == [contract_policy_id]
+  let minted_tokens = assets.tokens(mint, contract_policy_id)
+
+  let nothing_but_markers_minted = ( minted_tokens |> dict.size() ) == 1
+  let markers_amount_is_ok =
+    Some(amount_limit) == dict.get(minted_tokens, marker)
+
+  and {
+    minting_by_contract_only?,
+    nothing_but_markers_minted?,
+    markers_amount_is_ok?,
+  }
+}
+
 validator exchange {
   mint(redeemer: ContractMode, contract_policy_id: PolicyId, tx: Transaction) {
     let (contract_address, _) =
@@ -201,15 +221,12 @@ validator exchange {
                 },
               )
 
-        let minting_by_contract_only =
-          assets.policies(tx_mint) == [contract_policy_id]
-        let minted_tokens = assets.tokens(tx_mint, contract_policy_id)
-
-        let nothing_but_markers_minted = ( minted_tokens |> dict.size() ) == 1
-        let markers_amount_is_ok =
-          Some(list.length(listings)) == dict.get(
-            minted_tokens,
+        let markers_are_ok =
+          validate_markers_mint(
+            tx_mint,
+            contract_policy_id,
             contract_listing_marker,
+            list.length(listings),
           )
 
         let action_is_authorized = [listing_operator_keyhash] == tx_extra_signs
@@ -217,12 +234,25 @@ validator exchange {
         and {
           all_listings_are_valid?,
           config_is_valid?,
-          minting_by_contract_only?,
-          nothing_but_markers_minted?,
-          markers_amount_is_ok?,
+          markers_are_ok?,
           action_is_authorized?,
         }
       }
+      Delisting ->
+        // A correct delisting transaction must contain:
+        //   Reference inputs[1]:
+        //     - Reference to the contract valid `config eUTxO`
+        //   Inputs[>=1]:
+        //     - one or many inputs from the contract address containing:
+        //       - 1 token `contract_policy_id.contract_listing_marker` per input
+        //   Outputs[>=0]:
+        //     - any number of outputs to other addresses if needed (not validated)
+        //     - no outputs containing `contract_policy_id.contract_listing_marker`
+        //   Minting:
+        //     - exactly -1 `contract_policy_id.contract_listing_marker` per listing input
+        //   Additional signers:
+        //     - a signature corresponding to the `listing_operator_credential` field in the reference utxo datum
+        False
       _ -> False
     }
   }
@@ -260,6 +290,21 @@ validator exchange {
           contract_policy_id,
           current_config_datum: spent_utxo_datum,
         )
+      Delisting ->
+        // A correct delisting transaction must contain:
+        //   Reference inputs[1]:
+        //     - Reference to the contract valid `config eUTxO`
+        //   Inputs[>=1]:
+        //     - one or many inputs from the contract address containing:
+        //       - 1 token `contract_policy_id.contract_listing_marker` per input
+        //   Outputs[>=0]:
+        //     - any number of outputs to other addresses if needed (not validated)
+        //      - no outputs containing `contract_policy_id.contract_listing_marker`
+        //   Minting:
+        //     - exactly -1 `contract_policy_id.contract_listing_marker` per listing input
+        //   Additional signers:
+        //     - a signature corresponding to the `listing_operator_credential` field in the reference utxo datum
+        False
       _ -> False
     }
   }

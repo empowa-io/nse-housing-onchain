@@ -202,9 +202,8 @@ test failed_contract_outputs_marker_mismatch_GT() fail {
   //       - 1 token `contract_policy_id.contract_listing_marker` per output
   //   Minting:
   //     - exactly 1 `contract_policy_id.contract_listing_marker` per contract output
-  // For some reason the number of `contract_policy_id.contract_listing_marker` markers
-  // and valid outputs do not match
-  //  - more markers than outputs
+
+  // Attempt to mint something other than the marker on behalf of the contract
   try(
     Transaction {
       ..tx_placeholder,
@@ -286,8 +285,8 @@ test failed_bad_listing_datum_empty_policy() fail {
   //   Outputs[>=1]:
   //       - a valid datum of type `ListingDatum`
 
-  // Пользователь указал пустую policy_id
-  // Это не является какой-то проблемой, но лучше будет отклонять заведомо некорректные транзакции, даже если они безопасны для контракта
+  // User supplied an empty policy_id
+  // This is not a problem, but it is better to reject clearly invalid transactions, even if they are safe for the contract
   let bad_listing_output =
     Output {
       ..good_listing_output,
@@ -312,8 +311,8 @@ test failed_bad_listing_datum_empty_asset_name() fail {
   //   Outputs[>=1]:
   //       - a valid datum of type `ListingDatum`
 
-  // Пользователь указал пустой asset_name вместо None
-  // Это не является какой-то проблемой, но лучше будет отклонять заведомо некорректные транзакции, даже если они безопасны для контракта
+  // User supplied an empty asset_name instead of None
+  // This is not a problem, but it is better to reject clearly invalid transactions, even if they are safe for the contract
   let bad_listing_output =
     Output {
       ..good_listing_output,
@@ -331,6 +330,28 @@ test failed_bad_listing_datum_empty_asset_name() fail {
       reference_inputs: [good_config_reference_input],
       outputs: [bad_listing_output],
       mint: listing_marker,
+      extra_signatories: [listing_operator_payment_keyhash],
+    },
+  )
+}
+
+test failed_bad_mint_not_only_markers() fail {
+  // Incorrect action violating the rule:
+  //   Outputs[>=1]:
+  //     - one or many outputs to the contract address containing:
+  //       - 1 token `contract_policy_id.contract_listing_marker` per output
+  //   Minting:
+  //     - exactly 1 `contract_policy_id.contract_listing_marker` per contract output
+  // For some reason the number of `contract_policy_id.contract_listing_marker` markers
+  // and valid outputs do not match
+  //  - more markers than outputs
+  try(
+    Transaction {
+      ..tx_placeholder,
+      reference_inputs: [good_config_reference_input],
+      outputs: [good_listing_output_wildcard, output_placeholder],
+      mint: listing_marker
+        |> merge(from_asset(contract_policy_id, "bad asset name", 1)),
       extra_signatories: [listing_operator_payment_keyhash],
     },
   )
