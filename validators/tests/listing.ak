@@ -72,9 +72,6 @@ type BadDatum {
   val: Int,
 }
 
-// TODO: empty policy_id
-// TODO: empty asset_name
-
 // RUN: aiken check -S -m tests/listing
 
 // Test suite for the asset listing action
@@ -272,6 +269,61 @@ test failed_no_listing_datum() fail {
 
   // User forgot to include the datum
   let bad_listing_output = Output { ..good_listing_output, datum: NoDatum }
+
+  try(
+    Transaction {
+      ..tx_placeholder,
+      reference_inputs: [good_config_reference_input],
+      outputs: [bad_listing_output],
+      mint: listing_marker,
+      extra_signatories: [listing_operator_payment_keyhash],
+    },
+  )
+}
+
+test failed_bad_listing_datum_empty_policy() fail {
+  // Incorrect action violating the rule:
+  //   Outputs[>=1]:
+  //       - a valid datum of type `ListingDatum`
+
+  // Пользователь указал пустую policy_id
+  // Это не является какой-то проблемой, но лучше будет отклонять заведомо некорректные транзакции, даже если они безопасны для контракта
+  let bad_listing_output =
+    Output {
+      ..good_listing_output,
+      datum: InlineDatum(
+        ListingDatum { ..good_listing_datum_wildcard, listed_policy_id: "" },
+      ),
+    }
+
+  try(
+    Transaction {
+      ..tx_placeholder,
+      reference_inputs: [good_config_reference_input],
+      outputs: [bad_listing_output],
+      mint: listing_marker,
+      extra_signatories: [listing_operator_payment_keyhash],
+    },
+  )
+}
+
+test failed_bad_listing_datum_empty_asset_name() fail {
+  // Incorrect action violating the rule:
+  //   Outputs[>=1]:
+  //       - a valid datum of type `ListingDatum`
+
+  // Пользователь указал пустой asset_name вместо None
+  // Это не является какой-то проблемой, но лучше будет отклонять заведомо некорректные транзакции, даже если они безопасны для контракта
+  let bad_listing_output =
+    Output {
+      ..good_listing_output,
+      datum: InlineDatum(
+        ListingDatum {
+          ..good_listing_datum_no_wildcard,
+          listed_asset_name: Some(""),
+        },
+      ),
+    }
 
   try(
     Transaction {
