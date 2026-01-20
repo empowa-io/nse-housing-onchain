@@ -56,6 +56,8 @@ const good_garbage_input2 =
     },
   }
 
+// RUN: aiken check -S -m tests/cleaning
+
 // Test suite for the contract address cleaning action
 //  - For various reasons, garbage can accumulate at the contract address:
 //      - Garbage is defined as UTXOs created without the smart contract's involvement.
@@ -67,7 +69,7 @@ const good_garbage_input2 =
 // It is crucial to restrict their capabilities to cleaning garbage UTXOs only, and nothing else.
 
 // A correct order changing transaction must contain:
-//   Reference inputs[2]:
+//   Reference inputs:
 //     - Reference to the contract valid `config eUTxO`
 //   Inputs[>=1]:
 //      - Any number of UTXOs from the contract address that can be considered garbage:
@@ -127,7 +129,7 @@ test success_cleaning() {
 test fail_no_config_ref_input() fail {
   // Incorrect action violating the rule:
   // A correct order changing transaction must contain:
-  //   Reference inputs[2]:
+  //   Reference inputs:
   //     - Reference to the contract valid `config eUTxO`
 
   // The user did not include the config to bypass authentication
@@ -152,8 +154,8 @@ test fail_order_marker_on_input() fail {
 
   let bad_garbage_input =
     Input {
-      ..good_garbage_input1,
-      output: Output { ..good_garbage_input1.output, value: order_marker },
+      ..good_garbage_input2,
+      output: Output { ..good_garbage_input2.output, value: order_marker },
     }
 
   try(
@@ -178,8 +180,8 @@ test fail_config_marker_on_input() fail {
 
   let bad_garbage_input =
     Input {
-      ..good_garbage_input1,
-      output: Output { ..good_garbage_input1.output, value: config_marker },
+      ..good_garbage_input2,
+      output: Output { ..good_garbage_input2.output, value: config_marker },
     }
   try(
     Transaction {
@@ -203,7 +205,7 @@ test fail_listing_marker_on_input() fail {
 
   let bad_garbage_input =
     Input {
-      ..good_garbage_input1,
+      ..good_garbage_input2,
       output: Output { ..good_garbage_input1.output, value: listing_marker },
     }
   try(

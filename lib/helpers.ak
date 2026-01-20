@@ -106,19 +106,19 @@ pub fn build_markers(policy_id: PolicyId) -> List<Value> {
   ]
 }
 
-pub fn discover_contract_addr_pid(
+pub fn discover_contract_utxo_addr_pid(
   tx: Transaction,
   anchor: OutputRefOrPolicyId,
-) -> (Address, PolicyId) {
+) -> (Option<Output>, Address, PolicyId) {
   let Transaction { inputs, .. } = tx
 
   if anchor is OutputReference {
-    expect Some(Input { output: Output { address, .. }, .. }) =
-      find_input(inputs, anchor)
-    expect Address(Script(policy_id), ..) = address
-    (address, policy_id)
+    expect Some(Input { output, .. }) = find_input(inputs, anchor)
+    let Output { address, .. } = output
+    expect Address { payment_credential: Script(policy_id), .. } = address
+    (Some(output), address, policy_id)
   } else if anchor is PolicyId {
-    (Address(Script(anchor), None), anchor)
+    (None, Address(Script(anchor), None), anchor)
   } else {
     fail
   }

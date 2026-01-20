@@ -1,12 +1,12 @@
 use aiken/collection/dict
-use aiken/collection/list
+use aiken/collection/list.{has}
 use aiken/crypto.{VerificationKeyHash}
 use aiken/interval.{after, before}
 use aiken/math.{pow}
 use cardano/address.{Address, Script}
 use cardano/assets.{
-  AssetName, PolicyId, Value, from_asset, from_lovelace, has_nft, has_nft_strict,
-  merge, negate, zero,
+  AssetName, PolicyId, Value, from_asset, from_lovelace, has_any_nft, has_nft,
+  has_nft_strict, merge, negate, policies, zero,
 }
 use cardano/transaction.{
   InlineDatum, Input, NoDatum, Output, OutputReference, Transaction, find_input,
@@ -18,13 +18,13 @@ use config.{
   contract_order_min_ada,
 }
 use helpers.{
-  as_config_datum, as_listing_datum, discover_contract_addr_pid,
+  as_config_datum, as_listing_datum, discover_contract_utxo_addr_pid,
   find_outputs_by_address, find_outputs_by_marker, to_outputs,
 }
 use types.{
-  Bootstrap, Buy, ConfigDatum, Configuration, ContractMode, Delisting, Listing,
-  ListingDatum, Marker, OrderChanging, OrderDatum, OrderExecution, OrderPlacing,
-  OutputRefOrPolicyId, Sell,
+  Bootstrap, Buy, Cleaning, ConfigDatum, Configuration, ContractMode, Delisting,
+  Listing, ListingDatum, Marker, OrderChanging, OrderDatum, OrderExecution,
+  OrderPlacing, OutputRefOrPolicyId, Sell,
 }
 
 fn validate_config_update(
@@ -215,8 +215,8 @@ fn validate_markers_mint(
 
 validator exchange {
   mint(redeemer: ContractMode, contract_policy_id: PolicyId, tx: Transaction) {
-    let (contract_address, _) =
-      discover_contract_addr_pid(tx, contract_policy_id)
+    let (_, contract_address, _) =
+      discover_contract_utxo_addr_pid(tx, contract_policy_id)
     let Transaction {
       reference_inputs: tx_ref_inputs,
       inputs: tx_inputs,
@@ -300,8 +300,8 @@ validator exchange {
       ..
     } = tx
 
-    let (contract_address, contract_policy_id) =
-      discover_contract_addr_pid(tx, spent_utxo)
+    expect (Some(contract_utxo), contract_address, contract_policy_id) =
+      discover_contract_utxo_addr_pid(tx, spent_utxo)
 
     when redeemer is {
       Configuration ->
@@ -335,7 +335,54 @@ validator exchange {
         // burning markers on behalf of the contract.
         // If this requirement is met, allow spending the UTXO, because the Mint
         // sub-validator will be invoked next and perform the full validation.
+        // And the mint check is much cheaper (it has no utxo multiplier for mem\cpu)
         assets.quantity_of(tx_mint, contract_policy_id, contract_listing_marker) < 0
+      Cleaning -> {
+        // A correct order changing transaction must contain:
+        //   Reference inputs:
+        //     - Reference to the contract valid `config eUTxO`
+        //   Inputs[>=1]:
+        //      - Any number of UTXOs from the contract address that can be considered garbage:
+        //          - UTXOs that do not contain markers with contract_policy_id: contract_order_marker|contract_config_marker|contract_listing_marker.
+        //      - Any number of inputs from any other addresses
+        //   Minting:
+        //     - minting is prohibited as such and will not be possible because the Mint validator will not support the corresponding mode
+        //   Additional signers:
+        //     - a signature corresponding to the `contract_operator_keyhash` field in the config UTXO datum
+        //  
+        //   Here we cannot shift the check to Mint, and with multiple UTXOs
+        //   we would multiply resource usage and cost. Fortunately, this
+        //   sub-validator is very simple and cheap.
+
+        expect [config_ref_input] = tx_ref_inputs
+        let config_is_valid =
+          validate_marked_input(
+            config_ref_input,
+            contract_policy_id,
+            contract_config_marker,
+          )
+
+        let ConfigDatum { contract_operator_keyhash, .. } =
+          config_ref_input.output.datum |> as_config_datum()
+
+        let Output { value: contract_utxo_value, .. } = contract_utxo
+
+        let utxo_is_garbage =
+          !(contract_utxo_value
+            |> policies()
+            |> has(contract_policy_id))
+
+        let mint_is_empty = tx_mint == zero
+
+        let action_is_authorized = [contract_operator_keyhash] == tx_extra_signs
+
+        and {
+          config_is_valid?,
+          utxo_is_garbage?,
+          mint_is_empty?,
+          action_is_authorized?,
+        }
+      }
       _ -> False
     }
   }
