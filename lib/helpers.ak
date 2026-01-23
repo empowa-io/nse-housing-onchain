@@ -17,7 +17,7 @@ use config.{
   contract_order_min_ada,
 }
 use types.{
-  Bootstrap, Buy, ConfigDatum, Configuration, ContractMode, ListingDatum,
+  Bootstrap, Buy, ConfigDatum, Configuration, ContractMode, ListingDatum, Marker,
   OrderChanging, OrderDatum, OrderExecution, OrderPlacing, OutputRefOrPolicyId,
   Sell,
 }
@@ -49,6 +49,21 @@ pub fn as_listing_datum(datum: Data) -> ListingDatum {
   datum
 }
 
+pub fn read_config_datum(output: Output) -> ConfigDatum {
+  let Output { datum, .. } = output
+  datum |> as_config_datum()
+}
+
+pub fn read_order_datum(output: Output) -> OrderDatum {
+  let Output { datum, .. } = output
+  datum |> as_order_datum()
+}
+
+pub fn read_listing_datum(output: Output) -> ListingDatum {
+  let Output { datum, .. } = output
+  datum |> as_listing_datum()
+}
+
 pub fn find_outputs_by_address(
   outputs: List<Output>,
   address: Address,
@@ -69,10 +84,10 @@ pub fn find_outputs_by_address(
 
 pub fn find_outputs_by_marker(
   outputs: List<Output>,
-  marker_policy_id: PolicyId,
-  marker_asset_name: AssetName,
+  marker: Marker,
   strict_mode: Bool,
 ) -> List<Output> {
+  let Marker(marker_policy_id, marker_asset_name) = marker
   outputs
     |> list.reduce(
         [],

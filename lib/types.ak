@@ -48,5 +48,6 @@ pub type ContractMode {
 pub type OutputRefOrPolicyId =
   Data
 
-pub type Marker =
-  ByteArray
+pub type Marker {
+  Marker(PolicyId, AssetName)
+}

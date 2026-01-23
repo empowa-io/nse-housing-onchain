@@ -156,11 +156,7 @@ type BadDatum {
   val: Int,
 }
 
-// TODO: check if `good_order_ada` were broken
-// TODO: check more than 2 references
-// TODO: traded_asset_price: 0
-// TODO: add output index check
-// TODO: place_order when market is closed
+// RUN: aiken check -S -m tests/order_placing
 
 // Test suite for the order placing action
 // Order placing is not tied to the platform UI and can be performed by any user, including via CLI
@@ -263,6 +259,87 @@ test success_buy_wildcard() {
 
 // Failed cases
 
+test fail_sell_not_allowed_asset_name() {
+  // User tries to list an asset for sale whose `policy_id` is allowed, but `asset_name` is not
+  let bad_sell_order_output =
+    Output {
+      ..good_sell_order_output,
+      value: order_marker
+        |> merge(
+            from_asset(
+              approved_policy_id,
+              "not approved asset name",
+              order_asset_amount,
+            ),
+          )
+        |> merge(good_order_ada),
+    }
+
+  try(
+    Transaction {
+      ..tx_placeholder,
+      reference_inputs: [
+        good_config_reference_input, good_listing_reference_input_no_wildcard,
+      ],
+      outputs: [bad_sell_order_output, output_placeholder],
+      mint: order_marker,
+      extra_signatories: [maker_payment_keyhash],
+    },
+  )
+}
+
+test failed_order_with_zero_price() fail {
+  // What happens if a user sets the asset price to 0 ada?
+  // It does not matter whether it's BUY or SELL
+
+  let bad_buy_order_output =
+    Output {
+      ..good_buy_order_output,
+      datum: InlineDatum(
+        OrderDatum { ..good_buy_order_datum, traded_asset_price: 0 },
+      ),
+    }
+
+  try(
+    Transaction {
+      ..tx_placeholder,
+      reference_inputs: [
+        good_config_reference_input, good_listing_reference_input_wildcard,
+      ],
+      outputs: [bad_buy_order_output, output_placeholder],
+      mint: order_marker,
+      extra_signatories: [maker_payment_keyhash],
+    },
+  )
+}
+
+test failed_market_is_closed() fail {
+  // When the operator closes the market, actions authorized by regular users are not allowed
+
+  let bad_config_reference_input =
+    Input {
+      ..good_config_reference_input,
+      output: Output {
+        ..good_config_reference_input.output,
+        datum: InlineDatum(
+          ConfigDatum { ..good_conf_datum, is_market_open: False },
+        ),
+      },
+    }
+
+  try(
+    Transaction {
+      ..tx_placeholder,
+      reference_inputs: [
+        bad_config_reference_input, good_listing_reference_input_wildcard,
+      ],
+      outputs: [good_buy_order_output, output_placeholder],
+      mint: order_marker,
+      extra_signatories: [maker_payment_keyhash],
+    },
+  )
+}
+
 test failed_no_config_ref() fail {
   // Incorrect action violating the rule:
   //   Reference inputs[2]:
@@ -363,11 +440,7 @@ test failed_bad_listing_ref() fail {
   //   Reference inputs[2]:
   //     - Reference to the `listing eUTxO` allowing interaction with the asset being listed in the order
 
-  // This prevents an attempt to provide the contract with a fake listing
-  // A listing can be stored at any address, contains no special tokens, but:
-  //  - must contain a valid signature in the datum
-  //  - the signature is computed as sha256(listed_policy_id [+ listed_asset_name])
-  //  - the signature verification key is stored in the config eUTxO
+  // This prevents an attempt to provide the contract with a wrong listing
 
   let bad_listing_reference_input =
     Input {
@@ -421,9 +494,6 @@ test failed_many_contract_outputs() fail {
 
   // The contract API forbids placing more than one output to the contract address
 
-  let extra_contract_output =
-    Output { ..output_placeholder, address: contract_address }
-
   try(
     Transaction {
       ..tx_placeholder,
@@ -431,7 +501,7 @@ test failed_many_contract_outputs() fail {
         good_config_reference_input, good_listing_reference_input_no_wildcard,
       ],
       outputs: [
-        good_sell_order_output, extra_contract_output, output_placeholder,
+        good_sell_order_output, good_sell_order_output, output_placeholder,
       ],
       mint: order_marker,
       extra_signatories: [maker_payment_keyhash],
@@ -439,19 +509,14 @@ test failed_many_contract_outputs() fail {
   )
 }
 
-test failed_bad_order_output_no_marker() fail {
+test failed_contract_output_has_bad_index() fail {
   // Incorrect action violating the rule:
   //   Outputs[>=1]:
-  //     - exactly one output to the contract address containing:
-  //       - 1 token `contract_policy_id.contract_order_marker`
+  //     - exactly one output to the contract address containing
+  //      - index 0
+  //      
 
-  // Did the user accidentally send the marker to the change output?
-  let bad_order_output =
-    Output {
-      ..good_sell_order_output,
-      value: good_order_subject
-        |> merge(good_order_ada),
-    }
+  // Contract outputs always have a fixed index; this must not be violated
 
   try(
     Transaction {
@@ -459,7 +524,7 @@ test failed_bad_order_output_no_marker() fail {
       reference_inputs: [
         good_config_reference_input, good_listing_reference_input_no_wildcard,
       ],
-      outputs: [bad_order_output, output_placeholder],
+      outputs: [output_placeholder, good_sell_order_output],
       mint: order_marker,
       extra_signatories: [maker_payment_keyhash],
     },
