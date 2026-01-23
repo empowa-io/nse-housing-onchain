@@ -169,6 +169,7 @@ fn validate_listing_update(
   contract_policy_id: PolicyId,
   mode: ContractMode,
   config_marker: Marker,
+  listing_marker: Marker,
 ) -> Bool {
   let Transaction {
     reference_inputs: tx_ref_inputs,
@@ -221,7 +222,7 @@ fn validate_listing_update(
         )
 
   let markers_are_ok =
-    validate_markers_mint(tx_mint, config_marker, markers_count)
+    validate_markers_mint(tx_mint, listing_marker, markers_count)
 
   let is_action_authorized = [listing_operator_keyhash] == tx_extra_signs
 
@@ -364,7 +365,13 @@ validator exchange {
         //     - exactly 1 `contract_policy_id.contract_listing_marker` per contract output
         //   Additional signers:
         //     - a signature corresponding to the `listing_operator_credential` field in the reference utxo datum
-        validate_listing_update(tx, contract_policy_id, redeemer, config_marker)
+        validate_listing_update(
+          tx,
+          contract_policy_id,
+          redeemer,
+          config_marker,
+          listing_marker,
+        )
 
       Delisting ->
         // A correct delisting transaction must contain:
@@ -380,7 +387,13 @@ validator exchange {
         //     - exactly -1 `contract_policy_id.contract_listing_marker` per listing input
         //   Additional signers:
         //     - a signature corresponding to the `listing_operator_credential` field in the reference utxo datum
-        validate_listing_update(tx, contract_policy_id, redeemer, config_marker)
+        validate_listing_update(
+          tx,
+          contract_policy_id,
+          redeemer,
+          config_marker,
+          listing_marker,
+        )
       OrderPlacing -> {
         // A correct order placing transaction must contain:
         //   Inputs: (not validated)
