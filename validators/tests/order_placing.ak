@@ -259,7 +259,7 @@ test success_buy_wildcard() {
 
 // Failed cases
 
-test fail_sell_not_allowed_asset_name() {
+test fail_sell_not_allowed_asset_name() fail {
   // User tries to list an asset for sale whose `policy_id` is allowed, but `asset_name` is not
   let bad_sell_order_output =
     Output {
