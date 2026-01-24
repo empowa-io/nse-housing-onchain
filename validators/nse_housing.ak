@@ -414,11 +414,11 @@ validator exchange {
         //     - may be omitted if `timeout` in the datum is 0
         //     - if `timeout` in the datum points to some date, the upper bound must be before that date
         //   Additional signers:
-        //     - a signature corresponding to the `order_maker_credential` field in the spent utxo datum
+        //     - a signature corresponding to the `order_maker_keyhash` field in the spent utxo datum
         let ref_utxos = tx_ref_inputs |> to_outputs()
         expect [contract_output, ..rest] = tx_outputs
 
-        expect [ConfigDatum { is_market_open, .. }] =
+        expect [ConfigDatum { is_market_open, contract_operator_keyhash, .. }] =
           ref_utxos
             |> find_outputs_by_marker(config_marker, strict_mode: True)
             |> list.map(read_config_datum)
@@ -428,7 +428,7 @@ validator exchange {
             |> find_outputs_by_marker(listing_marker, strict_mode: True)
             |> list.map(read_listing_datum)
 
-        let OrderDatum { order_maker_credential, .. } =
+        let OrderDatum { order_maker_keyhash, .. } =
           contract_output |> read_order_datum()
 
         let is_order_output_valid =
@@ -444,8 +444,16 @@ validator exchange {
         let marker_minted_properly =
           validate_markers_mint(tx_mint, order_marker, 1)
 
-        let is_action_authorized =
-          validate_authorization(tx, order_maker_credential)
+        let is_action_authorized_by_user =
+          validate_authorization(tx, order_maker_keyhash)
+
+        let is_action_authorized_by_operator =
+          validate_authorization(tx, contract_operator_keyhash)
+
+        let is_action_authorized = or {
+            is_action_authorized_by_user,
+            is_action_authorized_by_operator,
+          }
 
         and {
           is_market_open?,
@@ -556,6 +564,79 @@ validator exchange {
         and {
           utxo_is_garbage?,
           mint_is_empty?,
+          is_action_authorized?,
+        }
+      }
+
+      OrderChanging -> {
+        //   Reference inputs[1]:
+        //     - Reference to the contract valid `config eUTxO`
+        //     - Reference to the `listing eUTxO` allowing interaction with the asset being listed in the order
+        //   Inputs[>=1]:
+        //      - Exactly one input from the contract address containing the order eUTxO (`contract_policy_id.contract_order_marker` + OrderDatum)
+        //      - Any number of user inputs if needed (not validated)
+        //   Outputs[>=1]:
+        //     - exactly one output to the contract address containing:
+        //       - index 0
+        //       - 1 token `contract_policy_id.contract_order_marker`
+        //       - a datum of type `OrderDatum`
+        //       - the required amount of locked assets depending on the order type (Buy/Sell)
+        //       - `contract_order_min_ada` ADA (returned to the owner after the order is closed/executed)
+        //      - any number of outputs to other addresses if needed (not validated)
+        //   Minting:
+        //     - forbidden
+        //   Additional signers:    
+        //     - a signature corresponding to the `order_maker_keyhash` field in the spent utxo datum
+        //     - a signature corresponding to the `order_maker_keyhash` field in the contract output utxo datum
+        let ref_utxos = tx_ref_inputs |> to_outputs()
+        expect [contract_utxo] =
+          tx_inputs |> to_outputs() |> find_outputs_by_address(contract_address)
+        expect [contract_output, ..rest] = tx_outputs
+
+        expect [ConfigDatum { is_market_open, .. }] =
+          ref_utxos
+            |> find_outputs_by_marker(config_marker, strict_mode: True)
+            |> list.map(read_config_datum)
+
+        expect [listing_data] =
+          ref_utxos
+            |> find_outputs_by_marker(listing_marker, strict_mode: True)
+            |> list.map(read_listing_datum)
+
+        let OrderDatum { order_maker_keyhash: new_order_maker_keyhash, .. } =
+          contract_output |> read_order_datum()
+
+        let OrderDatum { order_maker_keyhash: old_order_maker_keyhash, .. } =
+          contract_utxo |> read_order_datum()
+
+        let is_order_output_valid =
+          validate_order_output(
+            contract_output,
+            order_marker,
+            listing_data,
+            tx_validity_range,
+          )
+        let only_one_contract_output =
+          [] == ( rest |> find_outputs_by_address(contract_address) )
+
+        let tx_has_no_mint = tx_mint == zero
+
+        let is_action_authorized_by_old_owner =
+          validate_authorization(tx, old_order_maker_keyhash)
+
+        let is_action_authorized_by_new_owner =
+          validate_authorization(tx, new_order_maker_keyhash)
+
+        let is_action_authorized = or {
+            is_action_authorized_by_old_owner,
+            is_action_authorized_by_new_owner,
+          }
+
+        and {
+          is_market_open?,
+          is_order_output_valid?,
+          only_one_contract_output?,
+          tx_has_no_mint?,
           is_action_authorized?,
         }
       }

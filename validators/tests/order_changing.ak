@@ -1,3 +1,4 @@
+use aiken/interval.{entirely_before}
 use cardano/assets.{from_asset, from_lovelace, merge, negate}
 use cardano/transaction.{
   InlineDatum, Input, NoDatum, Output, Transaction,
@@ -90,7 +91,7 @@ const good_sell_order_datum =
     traded_asset_price: order_price_per_unit,
     partial_fulfillment_allowed: True,
     order_timeout_date: timeout,
-    order_maker_credential: maker_payment_keyhash,
+    order_maker_keyhash: maker_payment_keyhash,
   }
 
 const good_buy_order_datum =
@@ -102,7 +103,7 @@ const good_buy_order_datum =
     traded_asset_price: order_price_per_unit,
     partial_fulfillment_allowed: True,
     order_timeout_date: 0,
-    order_maker_credential: maker_payment_keyhash,
+    order_maker_keyhash: maker_payment_keyhash,
   }
 
 const good_sell_order_output =
@@ -132,14 +133,14 @@ const good_sell_order_input =
 
 const good_buy_order_datum_new_owner =
   OrderDatum {
-    order_type: Sell,
+    order_type: Buy,
     traded_asset_policy_id: approved_policy_id,
     traded_asset_name: approved_asset_name,
     traded_asset_amount: order_asset_amount,
     traded_asset_price: order_price_per_unit,
     partial_fulfillment_allowed: True,
     order_timeout_date: timeout,
-    order_maker_credential: taker_payment_keyhash,
+    order_maker_keyhash: taker_payment_keyhash,
   }
 
 const good_buy_order_output_new_owner =
@@ -151,6 +152,8 @@ const good_buy_order_output_new_owner =
 type BadDatum {
   val: Int,
 }
+
+// RUN  aiken check -S -m tests/order_changing
 
 // TODO: check if `good_order_ada` were broken
 // TODO: check more than 2 references
@@ -179,14 +182,15 @@ type BadDatum {
 //       - index 0
 //       - 1 token `contract_policy_id.contract_order_marker`
 //       - a datum of type `OrderDatum`
+//         - `traded_asset_price` must be > 0
 //       - the required amount of locked assets depending on the order type (Buy/Sell)
 //       - `contract_order_min_ada` ADA (returned to the owner after the order is closed/executed)
 //      - any number of outputs to other addresses if needed (not validated)
 //   Minting:
 //     - forbidden
 //   Additional signers:    
-//     - a signature corresponding to the `order_maker_credential` field in the spent utxo datum
-//     - a signature corresponding to the `order_maker_credential` field in the contract output utxo datum
+//     - a signature corresponding to the `order_maker_keyhash` field in the spent utxo datum
+//     - a signature corresponding to the `order_maker_keyhash` field in the contract output utxo datum
 // Validatiors: Spending only
 
 fn try(tx: Transaction, utxo: Input) -> Bool {
@@ -231,6 +235,7 @@ test success_order_changing_new_owner() {
       ],
       inputs: [good_sell_order_input, input_placeholder],
       outputs: [good_buy_order_output_new_owner, output_placeholder],
+      validity_range: entirely_before(timeout),
       extra_signatories: [maker_payment_keyhash, taker_payment_keyhash],
     },
     good_sell_order_input,
@@ -697,7 +702,7 @@ test fail_negative_minting() fail {
 test fail_missing_maker_signature() fail {
   // Incorrect action violating the rule:
   //   Additional signers:
-  //     - a signature corresponding to the `order_maker_credential` field in the spent utxo datum
+  //     - a signature corresponding to the `order_maker_keyhash` field in the spent utxo datum
   // Order owner did not sign the change
 
   try(
@@ -716,7 +721,7 @@ test fail_missing_maker_signature() fail {
 test fail_bad_extra_signature() fail {
   // Incorrect action violating the rule:
   //   Additional signers:
-  //     - a signature corresponding to the `order_maker_credential` field in the spent utxo datum
+  //     - a signature corresponding to the `order_maker_keyhash` field in the spent utxo datum
 
   // Operator cannot change someone else's order alone
   try(
@@ -736,7 +741,7 @@ test fail_bad_extra_signature() fail {
 test fail_missing_new_owner_signature() fail {
   // Incorrect action violating the rule:
   //   Additional signers:
-  //     - a signature corresponding to the `order_maker_credential` field in the contract output utxo datum
+  //     - a signature corresponding to the `order_maker_keyhash` field in the contract output utxo datum
   // New owner is specified in the datum but did not sign the transaction
 
   try(
@@ -756,7 +761,7 @@ test fail_missing_new_owner_signature() fail {
 test fail_missing_previous_owner_signature() fail {
   // Incorrect action violating the rule:
   //   Additional signers:
-  //     - a signature corresponding to the `order_maker_credential` field in the spent utxo datum
+  //     - a signature corresponding to the `order_maker_keyhash` field in the spent utxo datum
   // Previous owner did not sign the transfer of the order to the new owner
 
   try(
@@ -768,6 +773,114 @@ test fail_missing_previous_owner_signature() fail {
       inputs: [good_sell_order_input, input_placeholder],
       outputs: [good_buy_order_output_new_owner, output_placeholder],
       extra_signatories: [taker_payment_keyhash],
+    },
+    good_sell_order_input,
+  )
+}
+
+test fail_order_changing_zero_price() fail {
+  // Incorrect action violating the rule:
+  //   Outputs[>=1]:
+  //     - exactly one output to the contract address containing:
+  //       - a datum of type `OrderDatum`
+  //         - `traded_asset_price` must be > 0
+
+  let bad_order_output =
+    Output {
+      ..good_buy_order_output,
+      datum: InlineDatum(
+        OrderDatum { ..good_buy_order_datum, traded_asset_price: 0 },
+      ),
+    }
+
+  try(
+    Transaction {
+      ..tx_placeholder,
+      reference_inputs: [
+        good_config_reference_input, good_listing_reference_input_wildcard,
+      ],
+      inputs: [good_sell_order_input, input_placeholder],
+      outputs: [bad_order_output, output_placeholder],
+      extra_signatories: [maker_payment_keyhash],
+    },
+    good_sell_order_input,
+  )
+}
+
+test fail_order_changing_contract_output_bad_index() fail {
+  // Incorrect action violating the rule:
+  //   Outputs[>=1]:
+  //     - exactly one output to the contract address containing:
+  //       - index 0
+
+  try(
+    Transaction {
+      ..tx_placeholder,
+      reference_inputs: [
+        good_config_reference_input, good_listing_reference_input_no_wildcard,
+      ],
+      inputs: [good_sell_order_input, input_placeholder],
+      outputs: [output_placeholder, good_buy_order_output],
+      extra_signatories: [maker_payment_keyhash],
+    },
+    good_sell_order_input,
+  )
+}
+
+test fail_order_changing_market_closed() fail {
+  // Incorrect action violating the rule:
+  //   Reference inputs[1]:
+  //     - Reference to the contract valid `config eUTxO`
+  // Market is closed, user cannot change the order
+
+  let bad_config_reference_input =
+    Input {
+      ..good_config_reference_input,
+      output: Output {
+        ..good_config_reference_input.output,
+        datum: InlineDatum(
+          ConfigDatum { ..good_conf_datum, is_market_open: False },
+        ),
+      },
+    }
+
+  try(
+    Transaction {
+      ..tx_placeholder,
+      reference_inputs: [
+        bad_config_reference_input, good_listing_reference_input_wildcard,
+      ],
+      inputs: [good_sell_order_input, input_placeholder],
+      outputs: [good_buy_order_output, output_placeholder],
+      extra_signatories: [maker_payment_keyhash],
+    },
+    good_sell_order_input,
+  )
+}
+
+test fail_sell_order_output_bad_min_ada() fail {
+  // Incorrect action violating the rule:
+  //   Outputs[>=1]:
+  //       - `contract_order_min_ada` ADA (returned to the owner after the order is closed/executed)
+  // The order output does not include the exact min ADA amount
+
+  let bad_order_output =
+    Output {
+      ..good_sell_order_output,
+      value: order_marker
+        |> merge(good_order_subject)
+        |> merge(from_lovelace(contract_order_min_ada - 1)),
+    }
+
+  try(
+    Transaction {
+      ..tx_placeholder,
+      reference_inputs: [
+        good_config_reference_input, good_listing_reference_input_no_wildcard,
+      ],
+      inputs: [good_sell_order_input, input_placeholder],
+      outputs: [bad_order_output, output_placeholder],
+      extra_signatories: [maker_payment_keyhash],
     },
     good_sell_order_input,
   )

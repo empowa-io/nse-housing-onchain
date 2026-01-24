@@ -92,7 +92,7 @@ const good_sell_order_datum_with_timeout =
     traded_asset_price: order_price_per_unit,
     partial_fulfillment_allowed: True,
     order_timeout_date: timeout,
-    order_maker_credential: maker_payment_keyhash,
+    order_maker_keyhash: maker_payment_keyhash,
   }
 
 const good_sell_order_datum =
@@ -104,7 +104,7 @@ const good_sell_order_datum =
     traded_asset_price: order_price_per_unit,
     partial_fulfillment_allowed: True,
     order_timeout_date: 0,
-    order_maker_credential: maker_payment_keyhash,
+    order_maker_keyhash: maker_payment_keyhash,
   }
 
 const good_buy_order_datum =
@@ -116,7 +116,7 @@ const good_buy_order_datum =
     traded_asset_price: order_price_per_unit,
     partial_fulfillment_allowed: True,
     order_timeout_date: 0,
-    order_maker_credential: maker_payment_keyhash,
+    order_maker_keyhash: maker_payment_keyhash,
   }
 
 const good_order_subject =
@@ -183,7 +183,9 @@ type BadDatum {
 //     - may be omitted if `timeout` in the datum is 0
 //     - if `timeout` in the datum points to some date, the upper bound must be before that date
 //   Additional signers:
-//     - a signature corresponding to the `order_maker_credential` field in the spent utxo datum
+//     - a signature corresponding to the `order_maker_keyhash` field in the spent utxo datum
+//     - [optional] operator signature if order placed by operator for another user
+//      - e.g. migration from another version of the contract to a new one 
 
 // Validatiors: Minting only
 
@@ -253,6 +255,22 @@ test success_buy_wildcard() {
       outputs: [good_buy_order_output, output_placeholder],
       mint: order_marker,
       extra_signatories: [maker_payment_keyhash],
+    },
+  )
+}
+
+test success_order_placed_by_operator() {
+  // Successful transaction placing a buy order for a user, posted by the contract operator
+
+  try(
+    Transaction {
+      ..tx_placeholder,
+      reference_inputs: [
+        good_config_reference_input, good_listing_reference_input_wildcard,
+      ],
+      outputs: [good_buy_order_output, output_placeholder],
+      mint: order_marker,
+      extra_signatories: [operator_payment_keyhash],
     },
   )
 }
@@ -838,7 +856,7 @@ test failed_bad_order_timeout() fail {
 test failed_missed_extra_signature() fail {
   // Incorrect action violating the rule:
   //   Additional signers:
-  //     - a signature corresponding to the `order_maker_credential` field in the spent utxo datum
+  //     - a signature corresponding to the `order_maker_keyhash` field in the spent utxo datum
 
   // The user forgot to require a signature by the key specified in the datum and may:
   //  - lose control over the order
@@ -858,7 +876,7 @@ test failed_missed_extra_signature() fail {
 test failed_bad_extra_signature() fail {
   // Incorrect action violating the rule:
   //   Additional signers:
-  //     - a signature corresponding to the `order_maker_credential` field in the spent utxo datum
+  //     - a signature corresponding to the `order_maker_keyhash` field in the spent utxo datum
 
   // The user provided an incorrect signature that does not match the key in the datum, so they may:
   //  - lose control over the order

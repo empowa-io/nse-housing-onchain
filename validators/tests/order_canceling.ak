@@ -58,7 +58,7 @@ const sell_order_datum_with_timeout =
     traded_asset_price: order_price_per_unit,
     partial_fulfillment_allowed: True,
     order_timeout_date: timeout,
-    order_maker_credential: maker_payment_keyhash,
+    order_maker_keyhash: maker_payment_keyhash,
   }
 
 const order_subject =
@@ -113,7 +113,7 @@ const good_maker_buy_output =
 //      - Exactly one input from the contract address containing the order eUTxO (`contract_policy_id.contract_order_marker` + OrderDatum)
 //      - Any number of user inputs if needed (not validated)
 //   Outputs[>=1]:
-//      - the output to the address associated with the `order_maker_credential` keyhash in the order datum that holds the funds locked in the order
+//      - the output to the address associated with the `order_maker_keyhash` keyhash in the order datum that holds the funds locked in the order
 //        - index 0
 //      - any number of outputs to other addresses if needed (not validated)
 //   Minting:
@@ -122,7 +122,7 @@ const good_maker_buy_output =
 //     - may be omitted if cancellation is performed by an authorized party
 //     - For unauthorized closure, if `timeout` in the datum points to some date, the upper bound must be after that date
 //   Additional signers:    
-//     a) a signature corresponding to the `order_maker_credential` field in the spent utxo datum
+//     a) a signature corresponding to the `order_maker_keyhash` field in the spent utxo datum
 //     b) OR a signature corresponding to the `contract_operator_keyhash` field in the config utxo datum
 // Validatiors: Minting + Spending
 
@@ -327,7 +327,7 @@ test fail_bad_order_utxo() fail {
 test fail_bad_user_output_address() fail {
   // Incorrect action violating the rule:
   //   Outputs[>=1]:
-  //      - Exactly one output to the address associated with the `order_maker_credential` keyhash in the order datum
+  //      - Exactly one output to the address associated with the `order_maker_keyhash` keyhash in the order datum
 
   // User specified an output address that is not linked to the keyhash in the order datum
 
@@ -349,7 +349,7 @@ test fail_bad_user_output_address() fail {
 test fail_bad_user_output_value() fail {
   // Incorrect action violating the rule:
   //   Outputs[>=1]:
-  //      - First one -  the output to the address associated with the `order_maker_credential` keyhash in the order datum that holds the funds locked in the order
+  //      - First one -  the output to the address associated with the `order_maker_keyhash` keyhash in the order datum that holds the funds locked in the order
 
   // User/operator transferred less than the remaining assets from the order to the first transaction output
 
@@ -381,7 +381,7 @@ test fail_bad_user_output_value() fail {
 test fail_bad_user_sell_output_coin() fail {
   // Incorrect action violating the rule:
   //   Outputs[>=1]:
-  //      - First one -  the output to the address associated with the `order_maker_credential` keyhash in the order datum that holds the funds locked in the order
+  //      - First one -  the output to the address associated with the `order_maker_keyhash` keyhash in the order datum that holds the funds locked in the order
 
   // User/operator transferred less than the remaining ada from the order to the first transaction output
   // We need to guarantee this cannot happen accidentally or intentionally
@@ -413,7 +413,7 @@ test fail_bad_user_sell_output_coin() fail {
 test fail_bad_user_buy_output_coin() fail {
   // Incorrect action violating the rule:
   //   Outputs[>=1]:
-  //      - First one -  the output to the address associated with the `order_maker_credential` keyhash in the order datum that holds the funds locked in the order
+  //      - First one -  the output to the address associated with the `order_maker_keyhash` keyhash in the order datum that holds the funds locked in the order
 
   // User/operator transferred less than the remaining ada from the order to the first transaction output
   // We need to guarantee this cannot happen accidentally or intentionally
@@ -513,7 +513,7 @@ test fail_unauthorized_canceling_before_timeout() fail {
 test fail_incorrect_extra_signature() fail {
   // Incorrect action violating the rule:
   //   Additional signers:    
-  //     a) a signature corresponding to the `order_maker_credential` field in the spent utxo datum
+  //     a) a signature corresponding to the `order_maker_keyhash` field in the spent utxo datum
   //     b) OR a signature corresponding to the `contract_operator_keyhash` field in the config utxo datum
 
   // Attempt to use a signature that does not belong to the owner or operator

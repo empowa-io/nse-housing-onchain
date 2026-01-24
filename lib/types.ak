@@ -15,7 +15,7 @@ pub type OrderDatum {
   traded_asset_price: Int,
   partial_fulfillment_allowed: Bool,
   order_timeout_date: Int,
-  order_maker_credential: VerificationKeyHash,
+  order_maker_keyhash: VerificationKeyHash,
 }
 
 pub type ConfigDatum {

@@ -147,7 +147,7 @@ Contract-issued asset **CONF** (`contract_config_marker`, 1 unit)
    * Asset price (base units, without decimal divider)
    * Partial fulfillment allowed (yes/no)
    * `timeout`
-   * `order_maker_credential`
+   * `order_maker_keyhash`
 5. Order output placed at the contract address
 
 ---
@@ -263,6 +263,8 @@ Removal of garbage UTXOs at the contract address.
 
 User places a new order.
 
+An order may also be placed by the operator on behalf of a user when needed (e.g., migrating orders between contract versions). In that case, the user's signature is not required; the operator signature is sufficient.
+
 * Mandatory:
 
   * Reference to a valid `listing eUTxO`
@@ -279,7 +281,7 @@ User places a new order.
 
     * Optional when `timeout` is `0`
     * If `timeout` is set, the upper bound must be **before** the timeout
-  * Signature of `order_maker_credential`
+  * Signature of `order_maker_keyhash` (or `contract_operator_keyhash` when the operator places the order on behalf of the user)
 
 ---
 
@@ -302,8 +304,8 @@ Modification of an existing order.
   * Minting is **forbidden**
   * Signatures:
 
-    * `order_maker_credential` from the spent order
-    * `order_maker_credential` from the new order if it changes
+    * `order_maker_keyhash` from the spent order
+    * `order_maker_keyhash` from the new order if it changes
 
 ---
 
@@ -315,7 +317,7 @@ Cancellation by the order owner or the operator.
 
   * Reference to the valid `config eUTxO`
   * Exactly one input from the contract address with `contract_order_marker`
-  * One output to the address specified by `order_maker_credential` that returns the locked funds (index 0)
+  * One output to the address specified by `order_maker_keyhash` that returns the locked funds (index 0)
   * Any number of outputs to other addresses if needed (not validated)
   * Burning exactly one `contract_order_marker`
   * Validity range:
@@ -324,7 +326,7 @@ Cancellation by the order owner or the operator.
     * If unauthorized, the upper bound must be **after** the timeout
   * Signatures:
 
-    * `order_maker_credential` **or** `contract_operator_keyhash`
+    * `order_maker_keyhash` **or** `contract_operator_keyhash`
 
 ---
 
@@ -358,4 +360,3 @@ A user accepts an order and executes the trade.
     * Must be invalid **after** the timeout in the input datum
     * Optional if timeout is `0`
   * Partial execution is allowed only if `partial_fulfillment_allowed` is `True`
-
