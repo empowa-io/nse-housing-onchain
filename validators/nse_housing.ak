@@ -640,7 +640,10 @@ validator exchange {
       }
       OrderExecution ->
         // Minting during order execution is optional, so we just check whether the contract is involved in validating the UTXO spend and delegate to it
-        contract_utxo != None
+        and {
+          validate_markers_mint(tx_mint, order_marker, -1),
+          contract_utxo != None,
+        }
       _ -> False
     }
   }

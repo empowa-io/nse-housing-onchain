@@ -14,5 +14,5 @@ jobs:
         with:
           version: v1.1.21
       # - run: aiken fmt --check
-      - run: aiken check -S -m tests/bootstrap -m tests/configuration -m tests/listing -m tests/delisting -m tests/cleaning -m tests/order_placing -m tests/order_changing
+      - run: aiken check -S -m tests/bootstrap -m tests/configuration -m tests/listing -m tests/delisting -m tests/cleaning -m tests/order_placing -m tests/order_changing  -m tests/order_exec
       # - run: aiken build 

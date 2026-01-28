@@ -134,8 +134,12 @@ pub fn discover_contract_utxo_addr_pid(
   } else if anchor is PolicyId {
     let address =
       Address { payment_credential: Script(anchor), stake_credential: None }
-    expect [output] = inputs |> to_outputs() |> find_outputs_by_address(address)
-    (Some(output), address, anchor)
+    let output =
+      when inputs |> to_outputs() |> find_outputs_by_address(address) is {
+        [output, ..] -> Some(output)
+        [] -> None
+      }
+    (output, address, anchor)
   } else {
     fail
   }
