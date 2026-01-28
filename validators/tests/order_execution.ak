@@ -1,11 +1,13 @@
-use aiken/interval.{before}
+use aiken/interval.{entirely_before}
 use aiken/math.{pow}
 use cardano/assets.{from_asset, from_lovelace, merge, negate, zero}
 use cardano/transaction.{
   InlineDatum, Input, NoDatum, Output, Transaction,
   placeholder as tx_placeholder,
 }
-use config.{contract_config_marker, contract_order_min_ada}
+use config.{
+  contract_config_marker, contract_listing_marker, contract_order_min_ada,
+}
 use default.{
   base_platform_fee_decimal_part, base_platform_fee_min_amount,
   base_platform_fee_percent, config_marker, contract_address, contract_policy_id,
@@ -22,7 +24,7 @@ const approved_asset_name = "approved asset name"
 
 const order_asset_amount = 42
 
-const order_price_per_unit = 1_000_000
+const order_price_per_unit = 1_000_000_000
 
 const deal_amount_asset = 10
 
@@ -60,9 +62,7 @@ const good_order_partial_buy_ada_value =
   )
 
 const good_deal_ada_value_partial_exec =
-  from_lovelace(
-    deal_amount_asset * order_price_per_unit + contract_order_min_ada,
-  )
+  from_lovelace(deal_amount_asset * order_price_per_unit)
 
 const good_deal_asset_value_partial_exec =
   from_asset(approved_policy_id, approved_asset_name, deal_amount_asset)
@@ -196,8 +196,7 @@ const good_sell_maker_output_full_exec =
   Output {
     ..output_placeholder,
     address: maker_address,
-    value: good_order_full_ada_value
-      |> merge(good_order_min_ada),
+    value: good_order_full_ada_value,
   }
 
 const good_sell_taker_output_full_exec =
@@ -255,7 +254,8 @@ const good_buy_taker_output_full_exec =
     ..output_placeholder,
     address: taker_address,
     value: good_order_full_ada_value
-      |> merge(negate(platform_fee_full_exec_amount)),
+      |> merge(negate(platform_fee_full_exec_amount))
+      |> merge(negate(from_lovelace(contract_order_min_ada))),
   }
 
 const good_buy_order_output_partial_exec =
@@ -264,15 +264,15 @@ const good_buy_order_output_partial_exec =
     address: contract_address,
     datum: InlineDatum(good_buy_order_datum_after),
     value: order_marker
-      |> merge(good_order_partial_buy_ada_value)
-      |> merge(good_order_min_ada),
+      |> merge(good_order_partial_buy_ada_value),
   }
 
 const good_buy_maker_output_partial_exec =
   Output {
     ..output_placeholder,
     address: maker_address,
-    value: good_deal_asset_value_partial_exec,
+    value: good_deal_asset_value_partial_exec
+      |> merge(from_lovelace(1)),
   }
 
 const good_buy_taker_output_partial_exec =
@@ -287,9 +287,6 @@ type BadDatum {
   val: Int,
 }
 
-// TODO: execute order when market is closed
-// TODO: zero fees test
-
 // Test suite for the order exetution action
 //  - An order can be accepted by any Cardano user; authorization is not required
 //  - The only sufficient condition is meeting the order terms on price and asset\ada amount
@@ -300,7 +297,7 @@ type BadDatum {
 // The main attack vector is an attempt to trick the contract to obtain the order contents without the corresponding costs
 // User errors can also occur, but their nature is such that they cannot be distinguished from an attack
 
-// A correct order changing transaction must contain:
+// A correct order execution transaction must contain:
 //   Reference inputs[2]:
 //     - Reference to the contract valid `config eUTxO`
 //     - Reference to the `listing eUTxO` allowing interaction with the asset being listed in the order
@@ -364,8 +361,8 @@ fn try(tx: Transaction, utxo: Input) {
     spending_validation
   } else {
     and {
-      spending_validation,
-      nse_housing.exchange.mint(OrderExecution, contract_policy_id, tx),
+      spending_validation?,
+      nse_housing.exchange.mint(OrderExecution, contract_policy_id, tx)?,
     }
   }
 }
@@ -384,7 +381,7 @@ test success_sell_full_execution() {
         good_platform_fee_output_full_exec, output_placeholder,
       ],
       mint: negate(order_marker),
-      validity_range: before(timeout),
+      validity_range: entirely_before(timeout),
     },
     good_sell_order_input,
   )
@@ -404,7 +401,7 @@ test success_sell_partial_execution() {
         good_platform_fee_output_partiall_exec,
         good_sell_order_output_partial_exec, output_placeholder,
       ],
-      validity_range: before(timeout),
+      validity_range: entirely_before(timeout),
     },
     good_sell_order_input,
   )
@@ -424,7 +421,7 @@ test success_buy_full_execution() {
         good_platform_fee_output_full_exec, output_placeholder,
       ],
       mint: negate(order_marker),
-      validity_range: before(timeout),
+      validity_range: entirely_before(timeout),
     },
     good_buy_order_input,
   )
@@ -444,14 +441,14 @@ test success_buy_partial_execution() {
         good_platform_fee_output_partiall_exec,
         good_buy_order_output_partial_exec, output_placeholder,
       ],
-      validity_range: before(timeout),
+      validity_range: entirely_before(timeout),
     },
     good_buy_order_input,
   )
 }
 
 // Failed common cases (doesn't matter buy or sell, full or partial)
-test failed_garbage_at_order_output() fail {
+test fail_garbage_at_order_output() fail {
   // The contract output containing the order must not contain foreign assets
   let bad_sell_order_output_partial_exec =
     Output {
@@ -471,13 +468,13 @@ test failed_garbage_at_order_output() fail {
         good_platform_fee_output_partiall_exec,
         bad_sell_order_output_partial_exec, output_placeholder,
       ],
-      validity_range: before(timeout),
+      validity_range: entirely_before(timeout),
     },
     good_sell_order_input,
   )
 }
 
-test failed_garbage_at_maker_output() fail {
+test fail_garbage_at_maker_output() fail {
   // The maker output receiving payment must not contain foreign assets
   let bad_sell_maker_output_partial_exec =
     Output {
@@ -497,13 +494,13 @@ test failed_garbage_at_maker_output() fail {
         good_platform_fee_output_partiall_exec,
         good_sell_order_output_partial_exec, output_placeholder,
       ],
-      validity_range: before(timeout),
+      validity_range: entirely_before(timeout),
     },
     good_sell_order_input,
   )
 }
 
-test failed_missed_platform_fee() fail {
+test fail_missed_platform_fee() fail {
   // Incorrect action violating the rule:
   //     -exactly one output to the platform address containing:
   //       - platform fee equals (base_platform_fee_percent/10^base_platform_fee_decimal_part)% payed by the taker
@@ -519,7 +516,7 @@ test failed_missed_platform_fee() fail {
         good_sell_maker_output_partial_exec, good_sell_taker_output_partial_exec,
         good_sell_order_output_partial_exec, output_placeholder,
       ],
-      validity_range: before(timeout),
+      validity_range: entirely_before(timeout),
     },
     good_sell_order_input,
   )
@@ -541,7 +538,7 @@ test fail_missed_config_utxo_ref() fail {
         good_platform_fee_output_full_exec, output_placeholder,
       ],
       mint: negate(order_marker),
-      validity_range: before(timeout),
+      validity_range: entirely_before(timeout),
     },
     good_sell_order_input,
   )
@@ -563,7 +560,7 @@ test fail_missed_listing_utxo_ref() fail {
         good_platform_fee_output_full_exec, output_placeholder,
       ],
       mint: negate(order_marker),
-      validity_range: before(timeout),
+      validity_range: entirely_before(timeout),
     },
     good_sell_order_input,
   )
@@ -577,46 +574,19 @@ test fail_no_ref_utxos() fail {
   try(
     Transaction {
       ..tx_placeholder,
-      reference_inputs: [
-        good_config_reference_input, good_listing_reference_input_wildcard,
-      ],
       inputs: [good_sell_order_input, input_placeholder],
       outputs: [
         good_sell_maker_output_full_exec, good_sell_taker_output_full_exec,
         good_platform_fee_output_full_exec, output_placeholder,
       ],
       mint: negate(order_marker),
-      validity_range: before(timeout),
+      validity_range: entirely_before(timeout),
     },
     good_sell_order_input,
   )
 }
 
-test fail_extra_reference_input() fail {
-  // Incorrect action violating the rule:
-  //   Reference inputs[2]:
-
-  // The user attached more than 2 references
-  try(
-    Transaction {
-      ..tx_placeholder,
-      reference_inputs: [
-        good_config_reference_input, good_listing_reference_input_wildcard,
-        input_placeholder,
-      ],
-      inputs: [good_sell_order_input, input_placeholder],
-      outputs: [
-        good_sell_maker_output_full_exec, good_sell_taker_output_full_exec,
-        good_platform_fee_output_full_exec, output_placeholder,
-      ],
-      mint: negate(order_marker),
-      validity_range: before(timeout),
-    },
-    good_sell_order_input,
-  )
-}
-
-test failed_bad_config_ref_address() fail {
+test fail_bad_config_ref_address() fail {
   // Incorrect action violating the rule:
   //   Reference inputs[2]:
   //     - Reference to the contract `config eUTxO`
@@ -650,28 +620,23 @@ test failed_bad_config_ref_address() fail {
         good_platform_fee_output_full_exec, output_placeholder,
       ],
       mint: negate(order_marker),
-      validity_range: before(timeout),
+      validity_range: entirely_before(timeout),
     },
     good_sell_order_input,
   )
 }
 
-test failed_bad_listing_ref() fail {
+test fail_bad_listing_ref() fail {
   // Incorrect action violating the rule:
   //   Reference inputs[2]:
   //     - Reference to the `listing eUTxO` allowing interaction with the asset being listed in the order
-
-  // This prevents an attempt to provide the contract with a fake listing
-  // A listing can be stored at any address, contains no special tokens, but:
-  //  - must contain a valid signature in the datum
-  //  - the signature is computed as sha256(listed_policy_id [+ listed_asset_name])
-  //  - the signature verification key is stored in the config eUTxO
 
   let bad_listing_reference_input =
     Input {
       ..good_listing_reference_input_no_wildcard,
       output: Output {
         ..good_listing_reference_input_no_wildcard.output,
+        value: from_asset("bad policy_id", contract_listing_marker, 1),
         datum: InlineDatum(
           ListingDatum {
             ..good_listing_datum_no_wildcard,
@@ -694,7 +659,7 @@ test failed_bad_listing_ref() fail {
         good_platform_fee_output_full_exec, output_placeholder,
       ],
       mint: negate(order_marker),
-      validity_range: before(timeout),
+      validity_range: entirely_before(timeout),
     },
     good_sell_order_input,
   )
@@ -718,7 +683,7 @@ test fail_many_order_inputs() fail {
         good_platform_fee_output_full_exec, output_placeholder,
       ],
       mint: negate(order_marker),
-      validity_range: before(timeout),
+      validity_range: entirely_before(timeout),
     },
     good_sell_order_input,
   )
@@ -741,7 +706,7 @@ test fail_no_marker_burning_after_full_exec() fail {
         good_sell_maker_output_full_exec, good_sell_taker_output_full_exec,
         good_platform_fee_output_full_exec, output_placeholder,
       ],
-      validity_range: before(timeout),
+      validity_range: entirely_before(timeout),
     },
     good_sell_order_input,
   )
@@ -761,17 +726,18 @@ test fail_marker_burning_after_partial_exec() fail {
       ],
       inputs: [good_sell_order_input, input_placeholder],
       outputs: [
-        good_sell_maker_output_full_exec, good_sell_taker_output_full_exec,
-        good_platform_fee_output_full_exec, output_placeholder,
+        good_sell_maker_output_partial_exec, good_sell_taker_output_partial_exec,
+        good_platform_fee_output_partiall_exec,
+        good_sell_order_output_partial_exec, output_placeholder,
       ],
-      validity_range: before(timeout),
+      validity_range: entirely_before(timeout),
       mint: negate(order_marker),
     },
     good_sell_order_input,
   )
 }
 
-test fail_extra_aeets_minted() fail {
+test fail_extra_assets_minted() fail {
   // Incorrect action violating the rule:
   //   Minting:
   //     - positive minting is forbidden in any case
@@ -790,7 +756,7 @@ test fail_extra_aeets_minted() fail {
         good_platform_fee_output_full_exec, output_placeholder,
       ],
       mint: order_marker,
-      validity_range: before(timeout),
+      validity_range: entirely_before(timeout),
     },
     good_sell_order_input,
   )
@@ -816,7 +782,7 @@ test fail_not_only_marker_was_burned() fail {
       ],
       mint: negate(order_marker)
         |> merge(negate(config_marker)),
-      validity_range: before(timeout),
+      validity_range: entirely_before(timeout),
     },
     good_sell_order_input,
   )
@@ -865,7 +831,7 @@ test fail_bad_outputs_count() fail {
         good_platform_fee_output_full_exec,
       ],
       mint: negate(order_marker),
-      validity_range: before(timeout),
+      validity_range: entirely_before(timeout),
     },
     good_sell_order_input,
   )
@@ -904,7 +870,7 @@ test fail_partial_execution_when_full_only_allowed() fail {
         good_platform_fee_output_partiall_exec,
         good_sell_order_output_partial_exec, output_placeholder,
       ],
-      validity_range: before(timeout),
+      validity_range: entirely_before(timeout),
     },
     good_sell_order_input,
   )
@@ -942,7 +908,7 @@ test fail_order_reconfiguration_attempt_change_owner() fail {
         good_platform_fee_output_partiall_exec,
         bad_sell_order_output_partial_exec, output_placeholder,
       ],
-      validity_range: before(timeout),
+      validity_range: entirely_before(timeout),
     },
     good_sell_order_input,
   )
@@ -980,7 +946,7 @@ test fail_order_reconfiguration_attempt_change_price() fail {
         good_platform_fee_output_partiall_exec,
         bad_sell_order_output_partial_exec, output_placeholder,
       ],
-      validity_range: before(timeout),
+      validity_range: entirely_before(timeout),
     },
     good_sell_order_input,
   )
@@ -1018,7 +984,7 @@ test fail_order_reconfiguration_attempt_change_asset_amount() fail {
         good_platform_fee_output_partiall_exec,
         bad_sell_order_output_partial_exec, output_placeholder,
       ],
-      validity_range: before(timeout),
+      validity_range: entirely_before(timeout),
     },
     good_sell_order_input,
   )
@@ -1056,7 +1022,7 @@ test fail_order_reconfiguration_attempt_change_policy_id() fail {
         good_platform_fee_output_partiall_exec,
         bad_sell_order_output_partial_exec, output_placeholder,
       ],
-      validity_range: before(timeout),
+      validity_range: entirely_before(timeout),
     },
     good_sell_order_input,
   )
@@ -1094,7 +1060,7 @@ test fail_order_reconfiguration_attempt_change_asset_name() fail {
         good_platform_fee_output_partiall_exec,
         bad_sell_order_output_partial_exec, output_placeholder,
       ],
-      validity_range: before(timeout),
+      validity_range: entirely_before(timeout),
     },
     good_sell_order_input,
   )
@@ -1129,7 +1095,7 @@ test fail_order_reconfiguration_attempt_change_order_type() fail {
         good_platform_fee_output_partiall_exec,
         bad_sell_order_output_partial_exec, output_placeholder,
       ],
-      validity_range: before(timeout),
+      validity_range: entirely_before(timeout),
     },
     good_sell_order_input,
   )
@@ -1167,7 +1133,7 @@ test fail_order_reconfiguration_attempt_change_partial_execution_mode() fail {
         good_platform_fee_output_partiall_exec,
         bad_sell_order_output_partial_exec, output_placeholder,
       ],
-      validity_range: before(timeout),
+      validity_range: entirely_before(timeout),
     },
     good_sell_order_input,
   )
@@ -1205,7 +1171,7 @@ test fail_order_reconfiguration_attempt_change_timeout() fail {
         good_platform_fee_output_partiall_exec,
         bad_sell_order_output_partial_exec, output_placeholder,
       ],
-      validity_range: before(timeout),
+      validity_range: entirely_before(timeout),
     },
     good_sell_order_input,
   )
@@ -1238,7 +1204,7 @@ test fail_bad_outputs_ordering_V1() fail {
         good_platform_fee_output_partiall_exec,
         good_sell_maker_output_partial_exec, output_placeholder,
       ],
-      validity_range: before(timeout),
+      validity_range: entirely_before(timeout),
     },
     good_sell_order_input,
   )
@@ -1271,7 +1237,7 @@ test fail_bad_outputs_ordering_V2() fail {
         good_platform_fee_output_partiall_exec,
         good_sell_maker_output_partial_exec, output_placeholder,
       ],
-      validity_range: before(timeout),
+      validity_range: entirely_before(timeout),
     },
     good_sell_order_input,
   )
@@ -1304,7 +1270,7 @@ test fail_bad_contract_output_stolen_marker() fail {
         good_platform_fee_output_partiall_exec,
         bad_sell_order_output_partial_exec, output_placeholder,
       ],
-      validity_range: before(timeout),
+      validity_range: entirely_before(timeout),
     },
     good_sell_order_input,
   )
@@ -1332,7 +1298,7 @@ test fail_bad_contract_output_no_datum() fail {
         good_platform_fee_output_partiall_exec,
         bad_sell_order_output_partial_exec, output_placeholder,
       ],
-      validity_range: before(timeout),
+      validity_range: entirely_before(timeout),
     },
     good_sell_order_input,
   )
@@ -1364,7 +1330,7 @@ test fail_bad_contract_output_wrong_datum() fail {
         good_platform_fee_output_partiall_exec,
         bad_sell_order_output_partial_exec, output_placeholder,
       ],
-      validity_range: before(timeout),
+      validity_range: entirely_before(timeout),
     },
     good_sell_order_input,
   )
@@ -1410,7 +1376,7 @@ test fail_sell_bad_maker_output_stolen_funds_partial_exec() fail {
         good_platform_fee_output_partiall_exec,
         good_sell_order_output_partial_exec, output_placeholder,
       ],
-      validity_range: before(timeout),
+      validity_range: entirely_before(timeout),
     },
     good_sell_order_input,
   )
@@ -1452,7 +1418,7 @@ test fail_sell_bad_maker_output_funds_sent_to_contract_partial_exec() fail {
         good_platform_fee_output_partiall_exec,
         bad_sell_order_output_partial_exec, output_placeholder,
       ],
-      validity_range: before(timeout),
+      validity_range: entirely_before(timeout),
     },
     good_sell_order_input,
   )
@@ -1494,7 +1460,7 @@ test fail_sell_bad_maker_output_stolen_funds_full_exec() fail {
         good_platform_fee_output_full_exec, output_placeholder,
       ],
       mint: negate(order_marker),
-      validity_range: before(timeout),
+      validity_range: entirely_before(timeout),
     },
     good_sell_order_input,
   )
@@ -1537,7 +1503,7 @@ test fail_buy_bad_maker_output_stolen_funds_partial_exec() fail {
         good_platform_fee_output_partiall_exec,
         good_buy_order_output_partial_exec, output_placeholder,
       ],
-      validity_range: before(timeout),
+      validity_range: entirely_before(timeout),
     },
     good_buy_order_input,
   )
@@ -1581,7 +1547,7 @@ test fail_buy_bad_maker_output_funds_sent_to_contract_partial_exec() fail {
         good_platform_fee_output_partiall_exec,
         bad_buy_order_output_partial_exec, output_placeholder,
       ],
-      validity_range: before(timeout),
+      validity_range: entirely_before(timeout),
     },
     good_buy_order_input,
   )
@@ -1622,7 +1588,7 @@ test fail_buy_bad_maker_output_stolen_funds_full_exec() fail {
         good_platform_fee_output_full_exec, output_placeholder,
       ],
       mint: negate(order_marker),
-      validity_range: before(timeout),
+      validity_range: entirely_before(timeout),
     },
     good_buy_order_input,
   )
@@ -1655,7 +1621,7 @@ test fail_stolen_order_min_ada_partial_exec() fail {
         good_platform_fee_output_partiall_exec,
         bad_sell_order_output_partial_exec, output_placeholder,
       ],
-      validity_range: before(timeout),
+      validity_range: entirely_before(timeout),
     },
     good_sell_order_input,
   )
@@ -1688,13 +1654,13 @@ test fail_stolen_order_min_ada_full_exec() fail {
         good_platform_fee_output_full_exec, output_placeholder,
       ],
       mint: negate(order_marker),
-      validity_range: before(timeout),
+      validity_range: entirely_before(timeout),
     },
     good_sell_order_input,
   )
 }
 
-test failed_sell_buy_order_output_stolen_ada() fail {
+test fail_sell_order_output_stolen_ada() fail {
   // Incorrect action violating the rule:
   //   Outputs[>=2]:
   //     - [optional] exactly one output to the `contract_address` containing:
@@ -1722,13 +1688,13 @@ test failed_sell_buy_order_output_stolen_ada() fail {
         good_platform_fee_output_partiall_exec,
         bad_sell_order_output_partial_exec, output_placeholder,
       ],
-      validity_range: before(timeout),
+      validity_range: entirely_before(timeout),
     },
     good_sell_order_input,
   )
 }
 
-test failed_sell_buy_order_output_stolen_assets() fail {
+test fail_buy_order_output_stolen_assets() fail {
   // Incorrect action violating the rule:
   //   Outputs[>=2]:
   //     - [optional] exactly one output to the `contract_address` containing:
@@ -1755,8 +1721,85 @@ test failed_sell_buy_order_output_stolen_assets() fail {
         good_platform_fee_output_partiall_exec,
         bad_buy_order_output_partial_exec, output_placeholder,
       ],
-      validity_range: before(timeout),
+      validity_range: entirely_before(timeout),
     },
     good_buy_order_input,
+  )
+}
+
+test fail_market_closed() fail {
+  // The market is closed by the Operator
+  let config_ref_input =
+    Input {
+      ..good_config_reference_input,
+      output: Output {
+        ..good_config_reference_input.output,
+        datum: InlineDatum(
+          ConfigDatum { ..good_conf_datum, is_market_open: False },
+        ),
+      },
+    }
+  try(
+    Transaction {
+      ..tx_placeholder,
+      reference_inputs: [
+        config_ref_input, good_listing_reference_input_wildcard,
+      ],
+      inputs: [good_sell_order_input, input_placeholder],
+      outputs: [
+        good_sell_maker_output_full_exec, good_sell_taker_output_full_exec,
+        good_platform_fee_output_full_exec, output_placeholder,
+      ],
+      mint: negate(order_marker),
+      validity_range: entirely_before(timeout),
+    },
+    good_sell_order_input,
+  )
+}
+
+test fail_bad_platform_fee() fail {
+  // User attempts to underpay the platform fee
+  let bad_platform_fee_output =
+    Output {
+      ..good_platform_fee_output_full_exec,
+      value: platform_fee_full_exec_amount
+        |> merge(from_lovelace(-1)),
+    }
+
+  try(
+    Transaction {
+      ..tx_placeholder,
+      reference_inputs: [
+        good_config_reference_input, good_listing_reference_input_wildcard,
+      ],
+      inputs: [good_sell_order_input, input_placeholder],
+      outputs: [
+        good_sell_maker_output_full_exec, good_sell_taker_output_full_exec,
+        bad_platform_fee_output, output_placeholder,
+      ],
+      mint: negate(order_marker),
+      validity_range: entirely_before(timeout),
+    },
+    good_sell_order_input,
+  )
+}
+
+test fail_zero_platform_fee() fail {
+  // User did not include a platform fee output at all
+  try(
+    Transaction {
+      ..tx_placeholder,
+      reference_inputs: [
+        good_config_reference_input, good_listing_reference_input_wildcard,
+      ],
+      inputs: [good_sell_order_input, input_placeholder],
+      outputs: [
+        good_sell_maker_output_full_exec, good_sell_taker_output_full_exec,
+        output_placeholder,
+      ],
+      mint: negate(order_marker),
+      validity_range: entirely_before(timeout),
+    },
+    good_sell_order_input,
   )
 }

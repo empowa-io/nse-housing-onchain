@@ -155,12 +155,6 @@ type BadDatum {
 
 // RUN  aiken check -S -m tests/order_changing
 
-// TODO: check if `good_order_ada` were broken
-// TODO: check more than 2 references
-// TODO: traded_asset_price: 0
-// TODO: add output index check
-// TODO: change order when market is closed
-
 // Test suite for the order changing action
 //  - Order owner may change its configuration at any moment
 //  - Operator is not allowed to do so(!)

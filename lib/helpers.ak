@@ -126,14 +126,16 @@ pub fn discover_contract_utxo_addr_pid(
   anchor: OutputRefOrPolicyId,
 ) -> (Option<Output>, Address, PolicyId) {
   let Transaction { inputs, .. } = tx
-
   if anchor is OutputReference {
     expect Some(Input { output, .. }) = find_input(inputs, anchor)
     let Output { address, .. } = output
     expect Address { payment_credential: Script(policy_id), .. } = address
     (Some(output), address, policy_id)
   } else if anchor is PolicyId {
-    (None, Address(Script(anchor), None), anchor)
+    let address =
+      Address { payment_credential: Script(anchor), stake_credential: None }
+    expect [output] = inputs |> to_outputs() |> find_outputs_by_address(address)
+    (Some(output), address, anchor)
   } else {
     fail
   }
