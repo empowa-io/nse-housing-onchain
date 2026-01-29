@@ -8,9 +8,9 @@ use config.{contract_config_marker, contract_order_min_ada}
 use default.{
   base_platform_fee_decimal_part, base_platform_fee_min_amount,
   base_platform_fee_percent, config_marker, contract_address, input_placeholder,
-  listing_marker, listing_operator_payment_keyhash, maker_payment_keyhash,
-  operator_payment_keyhash, order_marker, output_placeholder, platform_address,
-  taker_address, taker_payment_keyhash,
+  listing_marker, listing_operator_payment_keyhash, maker_address,
+  maker_payment_keyhash, operator_payment_keyhash, order_marker,
+  output_placeholder, platform_address, taker_address, taker_payment_keyhash,
 }
 use nse_housing
 use types.{Buy, ConfigDatum, ListingDatum, OrderChanging, OrderDatum, Sell}
@@ -91,7 +91,7 @@ const good_sell_order_datum =
     traded_asset_price: order_price_per_unit,
     partial_fulfillment_allowed: True,
     order_timeout_date: timeout,
-    order_maker_keyhash: maker_payment_keyhash,
+    order_maker_address: maker_address,
   }
 
 const good_buy_order_datum =
@@ -103,7 +103,7 @@ const good_buy_order_datum =
     traded_asset_price: order_price_per_unit,
     partial_fulfillment_allowed: True,
     order_timeout_date: 0,
-    order_maker_keyhash: maker_payment_keyhash,
+    order_maker_address: maker_address,
   }
 
 const good_sell_order_output =
@@ -140,7 +140,7 @@ const good_buy_order_datum_new_owner =
     traded_asset_price: order_price_per_unit,
     partial_fulfillment_allowed: True,
     order_timeout_date: timeout,
-    order_maker_keyhash: taker_payment_keyhash,
+    order_maker_address: maker_address,
   }
 
 const good_buy_order_output_new_owner =

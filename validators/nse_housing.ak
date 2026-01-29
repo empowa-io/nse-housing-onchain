@@ -1,7 +1,9 @@
 use aiken/collection/dict
 use aiken/collection/list.{has}
 use aiken/crypto.{VerificationKeyHash}
-use aiken/interval.{Interval, after, before, is_entirely_before}
+use aiken/interval.{
+  Interval, after, before, is_entirely_after, is_entirely_before,
+}
 use aiken/math.{max, pow}
 use cardano/address.{Address, Script, VerificationKey}
 use cardano/assets.{
@@ -23,8 +25,8 @@ use helpers.{
 }
 use types.{
   Bootstrap, Buy, Cleaning, ConfigDatum, Configuration, ContractMode, Delisting,
-  Listing, ListingDatum, Marker, OrderChanging, OrderDatum, OrderExecution,
-  OrderPlacing, OutputRefOrPolicyId, Sell,
+  Listing, ListingDatum, Marker, OrderCanceling, OrderChanging, OrderDatum,
+  OrderExecution, OrderPlacing, OutputRefOrPolicyId, Sell,
 }
 
 fn validate_markers_mint(mint: Value, marker: Marker, amount_limit: Int) -> Bool {
@@ -33,13 +35,13 @@ fn validate_markers_mint(mint: Value, marker: Marker, amount_limit: Int) -> Bool
   let minted_tokens = assets.tokens(mint, contract_policy_id)
 
   let nothing_but_markers_minted = ( minted_tokens |> dict.size() ) == 1
-  let markers_amount_is_ok =
+  let is_markers_amount_ok =
     Some(amount_limit) == dict.get(minted_tokens, marker_asset_name)
 
   and {
     minting_by_contract_only?,
     nothing_but_markers_minted?,
-    markers_amount_is_ok?,
+    is_markers_amount_ok?,
   }
 }
 
@@ -260,7 +262,7 @@ fn validate_deal(
     traded_asset_price: traded_asset_price_init,
     partial_fulfillment_allowed: partial_fulfillment_allowed_init,
     order_timeout_date: order_timeout_date_init,
-    order_maker_keyhash: order_maker_keyhash_init,
+    order_maker_address: order_maker_address_init,
   } = contract_utxo |> read_order_datum()
   let ConfigDatum {
     platform_fee_percent,
@@ -275,11 +277,12 @@ fn validate_deal(
     taker_output, platform_fee_output, ..rest_outputs] = tx_outputs
   let Output { address: maker_address, .. } = maker_output
 
+  // Extract maker keyhash
+  expect Address(VerificationKey(order_maker_keyhash), ..) =
+    order_maker_address_init
+
   // Also validate the maker address:
-  let is_maker_address_correct =
-    maker_address.payment_credential == VerificationKey(
-      order_maker_keyhash_init,
-    )
+  let is_maker_address_correct = maker_address == order_maker_address_init
 
   // And the fee address as well:
   let is_platform_address_correct =
@@ -361,7 +364,7 @@ fn validate_deal(
           traded_asset_price: traded_asset_price_new,
           partial_fulfillment_allowed: partial_fulfillment_allowed_new,
           order_timeout_date: order_timeout_date_new,
-          order_maker_keyhash: order_maker_keyhash_new,
+          order_maker_address: order_maker_address_new,
         } = new_order_output |> read_order_datum()
         and {
           (order_type_new == order_type_init)?,
@@ -371,7 +374,7 @@ fn validate_deal(
           (traded_asset_price_new == traded_asset_price_init)?,
           (partial_fulfillment_allowed_new == partial_fulfillment_allowed_init)?,
           (order_timeout_date_new == order_timeout_date_init)?,
-          (order_maker_keyhash_new == order_maker_keyhash_init)?,
+          (order_maker_address_new == order_maker_address_init)?,
         }
       }
       // Then make sure there are no more contract outputs left
@@ -588,7 +591,7 @@ validator exchange {
         //     - may be omitted if `timeout` in the datum is 0
         //     - if `timeout` in the datum points to some date, the upper bound must be before that date
         //   Additional signers:
-        //     - a signature corresponding to the `order_maker_keyhash` field in the spent utxo datum
+        //     - a signature corresponding to the `order_maker_address` field in the spent utxo datum
         let ref_utxos = tx_ref_inputs |> to_outputs()
         expect [contract_output, ..rest] = tx_outputs
 
@@ -602,8 +605,10 @@ validator exchange {
             |> find_outputs_by_marker(listing_marker, strict_mode: True)
             |> list.map(read_listing_datum)
 
-        let OrderDatum { order_maker_keyhash, .. } =
-          contract_output |> read_order_datum()
+        expect OrderDatum {
+          order_maker_address: Address(VerificationKey(order_maker_keyhash), ..),
+          ..
+        } = contract_output |> read_order_datum()
 
         let is_order_output_valid =
           validate_order_output(
@@ -644,6 +649,81 @@ validator exchange {
           validate_markers_mint(tx_mint, order_marker, -1),
           contract_utxo != None,
         }
+      OrderCanceling -> {
+        // A correct order canceling transaction must contain:
+        //   Reference inputs[1]:
+        //     - Reference to the contract valid `config eUTxO`
+        //   Inputs[>=1]:
+        //      - Exactly one input from the contract address containing the order eUTxO (`contract_policy_id.contract_order_marker` + OrderDatum)
+        //      - Any number of user inputs if needed (not validated)
+        //   Outputs[>=1]:
+        //      - the output to the address associated with the `order_maker_address` keyhash in the order datum that holds the funds locked in the order
+        //        - index 0
+        //      - any number of outputs to other addresses if needed (not validated)
+        //   Minting:
+        //     - exactly -1 `contract_policy_id.contract_order_marker`
+        //   Validity range[optional]:
+        //     - may be omitted if cancellation is performed by an authorized party
+        //     - For unauthorized closure, if `timeout` in the datum points to some date, the upper bound must be after that date
+        //   Additional signers:    
+        //     a) a signature corresponding to the `order_maker_address` field in the spent utxo datum
+        //     b) OR a signature corresponding to the `contract_operator_keyhash` field in the config utxo datum
+        // Validatiors: Minting + Spending
+        let ref_utxos = tx_ref_inputs |> to_outputs()
+        expect [maker_output, ..rest] = tx_outputs
+        expect [ConfigDatum { is_market_open, contract_operator_keyhash, .. }] =
+          ref_utxos
+            |> find_outputs_by_marker(config_marker, strict_mode: True)
+            |> list.map(read_config_datum)
+        expect [order_input_output] =
+          tx_inputs
+            |> to_outputs()
+            |> find_outputs_by_address(contract_address)
+
+        expect Output { value: order_value, .. } = order_input_output
+        expect OrderDatum {
+          order_type,
+          order_maker_address,
+          order_timeout_date,
+          ..
+        } = order_input_output |> read_order_datum()
+        expect Address {
+          payment_credential: VerificationKey(order_maker_keyhash),
+          ..
+        } = order_maker_address
+        let is_maker_output_address_valid =
+          maker_output.address == order_maker_address
+        let is_maker_output_value_valid =
+          maker_output.value == (
+            order_value
+              |> merge(
+                  from_asset(contract_policy_id, contract_order_marker, -1),
+                )
+          )
+        let only_one_maker_output =
+          [] == ( tx_outputs |> find_outputs_by_address(contract_address) )
+        let marker_minted_properly =
+          validate_markers_mint(tx_mint, order_marker, -1)
+        let is_action_authorized_by_user =
+          validate_authorization(tx, order_maker_keyhash)
+        let is_action_authorized_by_operator =
+          validate_authorization(tx, contract_operator_keyhash)
+        let is_tx_outdated =
+          tx_validity_range |> is_entirely_after(order_timeout_date)
+        let is_action_authorized = or {
+            (is_action_authorized_by_user && is_market_open)?,
+            is_action_authorized_by_operator?,
+            is_tx_outdated?,
+          }
+        and {
+          is_market_open?,
+          is_maker_output_address_valid?,
+          is_maker_output_value_valid?,
+          only_one_maker_output?,
+          marker_minted_properly?,
+          is_action_authorized?,
+        }
+      }
       _ -> False
     }
   }
@@ -764,8 +844,8 @@ validator exchange {
         //   Minting:
         //     - forbidden
         //   Additional signers:    
-        //     - a signature corresponding to the `order_maker_keyhash` field in the spent utxo datum
-        //     - a signature corresponding to the `order_maker_keyhash` field in the contract output utxo datum
+        //     - a signature corresponding to the `order_maker_address` field in the spent utxo datum
+        //     - a signature corresponding to the `order_maker_address` field in the contract output utxo datum
         let ref_utxos = tx_ref_inputs |> to_outputs()
 
         expect [ConfigDatum { is_market_open, .. }] =
@@ -782,11 +862,21 @@ validator exchange {
           tx_inputs |> to_outputs() |> find_outputs_by_address(contract_address)
         expect [contract_output, ..rest] = tx_outputs
 
-        let OrderDatum { order_maker_keyhash: new_order_maker_keyhash, .. } =
-          contract_output |> read_order_datum()
+        expect OrderDatum {
+          order_maker_address: Address {
+            payment_credential: VerificationKey(new_order_maker_keyhash),
+            ..
+          },
+          ..
+        } = contract_output |> read_order_datum()
 
-        let OrderDatum { order_maker_keyhash: old_order_maker_keyhash, .. } =
-          contract_utxo |> read_order_datum()
+        expect OrderDatum {
+          order_maker_address: Address {
+            payment_credential: VerificationKey(old_order_maker_keyhash),
+            ..
+          },
+          ..
+        } = contract_utxo |> read_order_datum()
 
         let is_order_output_valid =
           validate_order_output(
@@ -893,6 +983,15 @@ validator exchange {
           is_minting_ok?,
         }
       }
+      OrderCanceling ->
+        // Since the order canceling process requires both Spend and Mint checks,
+        // validation can be implemented in just one sub-validator without code duplication.
+        // During order canceling, markers must be burned, so the transaction must include
+        // burning markers on behalf of the contract.
+        // If this requirement is met, allow spending the UTXO, because the Mint
+        // sub-validator will be invoked next and perform the full validation.
+        // And the mint check is much cheaper (it has no utxo multiplier for mem\cpu)
+        assets.quantity_of(tx_mint, contract_policy_id, contract_order_marker) < 0
       _ -> False
     }
   }

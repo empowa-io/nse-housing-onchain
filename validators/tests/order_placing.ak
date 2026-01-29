@@ -11,7 +11,7 @@ use default.{
   base_platform_fee_decimal_part, base_platform_fee_min_amount,
   base_platform_fee_percent, contract_address, contract_policy_id,
   input_placeholder, listing_marker, listing_operator_payment_keyhash,
-  maker_payment_keyhash, operator_payment_keyhash, order_marker,
+  maker_address, maker_payment_keyhash, operator_payment_keyhash, order_marker,
   output_placeholder, platform_address, taker_address,
 }
 use nse_housing
@@ -92,7 +92,7 @@ const good_sell_order_datum_with_timeout =
     traded_asset_price: order_price_per_unit,
     partial_fulfillment_allowed: True,
     order_timeout_date: timeout,
-    order_maker_keyhash: maker_payment_keyhash,
+    order_maker_address: maker_address,
   }
 
 const good_sell_order_datum =
@@ -104,7 +104,7 @@ const good_sell_order_datum =
     traded_asset_price: order_price_per_unit,
     partial_fulfillment_allowed: True,
     order_timeout_date: 0,
-    order_maker_keyhash: maker_payment_keyhash,
+    order_maker_address: maker_address,
   }
 
 const good_buy_order_datum =
@@ -116,7 +116,7 @@ const good_buy_order_datum =
     traded_asset_price: order_price_per_unit,
     partial_fulfillment_allowed: True,
     order_timeout_date: 0,
-    order_maker_keyhash: maker_payment_keyhash,
+    order_maker_address: maker_address,
   }
 
 const good_order_subject =

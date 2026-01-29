@@ -1,4 +1,4 @@
-use aiken/interval.{after, before}
+use aiken/interval.{after, before, entirely_after, entirely_before}
 use cardano/address.{Address}
 use cardano/assets.{from_asset, from_lovelace, merge, negate}
 use cardano/transaction.{
@@ -8,9 +8,10 @@ use config.{contract_config_marker, contract_order_min_ada}
 use default.{
   base_platform_fee_decimal_part, base_platform_fee_min_amount,
   base_platform_fee_percent, config_marker, contract_address, contract_policy_id,
-  input_placeholder, listing_operator_payment_keyhash, maker_payment_cred,
-  maker_payment_keyhash, operator_payment_keyhash, order_marker,
-  output_placeholder, platform_address, taker_address, taker_payment_keyhash,
+  input_placeholder, listing_operator_payment_keyhash, maker_address,
+  maker_payment_cred, maker_payment_keyhash, operator_payment_keyhash,
+  order_marker, output_placeholder, platform_address, taker_address,
+  taker_payment_keyhash,
 }
 use nse_housing
 use types.{ConfigDatum, OrderCanceling, OrderDatum, Sell}
@@ -58,7 +59,7 @@ const sell_order_datum_with_timeout =
     traded_asset_price: order_price_per_unit,
     partial_fulfillment_allowed: True,
     order_timeout_date: timeout,
-    order_maker_keyhash: maker_payment_keyhash,
+    order_maker_address: maker_address,
   }
 
 const order_subject =
@@ -84,8 +85,7 @@ const good_maker_output =
     ..output_placeholder,
     address: Address(maker_payment_cred, None),
     value: order_subject
-      |> merge(order_ada)
-      |> merge(from_lovelace(-fee)),
+      |> merge(order_ada),
   }
 
 const good_maker_buy_output =
@@ -95,6 +95,8 @@ const good_maker_buy_output =
       order_asset_amount * order_price_per_unit + contract_order_min_ada,
     ),
   }
+
+// RUN  aiken check -S -m tests/order_cancel
 
 // TODO: add output index check
 // TODO: cancel order when market is closed (operator only)
@@ -124,6 +126,7 @@ const good_maker_buy_output =
 //   Additional signers:    
 //     a) a signature corresponding to the `order_maker_keyhash` field in the spent utxo datum
 //     b) OR a signature corresponding to the `contract_operator_keyhash` field in the config utxo datum
+//     c) OR nothing if timeout passed
 // Validatiors: Minting + Spending
 
 fn try(tx: Transaction, utxo: Input) -> Bool {
@@ -197,7 +200,7 @@ test success_order_canceling_unauthorized() {
       inputs: [sell_order_input, input_placeholder],
       outputs: [good_maker_output, output_placeholder],
       mint: negate(order_marker),
-      validity_range: after(timeout),
+      validity_range: entirely_after(timeout),
     },
     sell_order_input,
   )
@@ -435,7 +438,7 @@ test fail_bad_user_buy_output_coin() fail {
   )
 }
 
-test fail_no_oder_marker_burning() fail {
+test fail_no_order_marker_burning() fail {
   // Incorrect action violating the rule:
   //   Minting:
   //     - exactly -1 `contract_policy_id.contract_order_marker`
@@ -482,7 +485,7 @@ test fail_config_burning() fail {
     Transaction {
       ..tx_placeholder,
       reference_inputs: [good_config_reference_input],
-      inputs: [good_config_reference_input, sell_order_input, input_placeholder],
+      inputs: [sell_order_input, good_config_reference_input, input_placeholder],
       outputs: [good_maker_output, output_placeholder],
       mint: from_asset(contract_policy_id, contract_config_marker, -1),
       extra_signatories: [maker_payment_keyhash],
@@ -504,7 +507,7 @@ test fail_unauthorized_canceling_before_timeout() fail {
       inputs: [sell_order_input, input_placeholder],
       outputs: [good_maker_output, output_placeholder],
       mint: negate(order_marker),
-      validity_range: before(timeout),
+      validity_range: entirely_before(timeout),
     },
     sell_order_input,
   )

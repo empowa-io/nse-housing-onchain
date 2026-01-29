@@ -128,7 +128,7 @@ const good_sell_order_datum_before =
     traded_asset_price: order_price_per_unit,
     partial_fulfillment_allowed: True,
     order_timeout_date: timeout,
-    order_maker_keyhash: maker_payment_keyhash,
+    order_maker_address: maker_address,
   }
 
 const good_sell_order_datum_after =
@@ -140,7 +140,7 @@ const good_sell_order_datum_after =
     traded_asset_price: order_price_per_unit,
     partial_fulfillment_allowed: True,
     order_timeout_date: timeout,
-    order_maker_keyhash: maker_payment_keyhash,
+    order_maker_address: maker_address,
   }
 
 const good_buy_order_datum_before =
@@ -152,7 +152,7 @@ const good_buy_order_datum_before =
     traded_asset_price: order_price_per_unit,
     partial_fulfillment_allowed: True,
     order_timeout_date: 0,
-    order_maker_keyhash: maker_payment_keyhash,
+    order_maker_address: maker_address,
   }
 
 const good_buy_order_datum_after =
@@ -164,7 +164,7 @@ const good_buy_order_datum_after =
     traded_asset_price: order_price_per_unit,
     partial_fulfillment_allowed: True,
     order_timeout_date: 0,
-    order_maker_keyhash: maker_payment_keyhash,
+    order_maker_address: maker_address,
   }
 
 const good_platform_fee_output_full_exec =
@@ -891,7 +891,7 @@ test fail_order_reconfiguration_attempt_change_owner() fail {
       datum: InlineDatum(
         OrderDatum {
           ..good_sell_order_datum_after,
-          order_maker_keyhash: taker_payment_keyhash,
+          order_maker_address: taker_address,
         },
       ),
     }
