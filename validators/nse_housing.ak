@@ -1,491 +1,22 @@
-use aiken/collection/dict
 use aiken/collection/list.{has}
-use aiken/crypto.{VerificationKeyHash}
-use aiken/interval.{
-  Interval, after, before, is_entirely_after, is_entirely_before,
-}
-use aiken/math.{max, pow}
-use cardano/address.{Address, Script, VerificationKey}
-use cardano/assets.{
-  AssetName, PolicyId, Value, from_asset, from_lovelace, has_any_nft, has_nft,
-  has_nft_strict, lovelace_of, merge, negate, policies, quantity_of, zero,
-}
-use cardano/transaction.{
-  InlineDatum, Input, NoDatum, Output, OutputReference, Transaction, find_input,
-}
+use aiken/interval.{is_entirely_after}
+use cardano/address.{Address, VerificationKey}
+use cardano/assets.{PolicyId, from_asset, merge, policies, zero}
+use cardano/transaction.{Output, OutputReference, Transaction}
 use config.{
-  contract_bootstrap_utxo_hash, contract_bootstrap_utxo_index,
   contract_config_marker, contract_listing_marker, contract_order_marker,
-  contract_order_min_ada,
 }
 use helpers.{
-  as_config_datum, as_listing_datum, discover_contract_utxo_addr_pid,
-  find_outputs_by_address, find_outputs_by_marker, read_config_datum,
-  read_listing_datum, read_order_datum, to_outputs,
+  discover_contract_utxo_addr_pid, find_outputs_by_address,
+  find_outputs_by_marker, read_config_datum, read_listing_datum,
+  read_order_datum, to_outputs, validate_authorization, validate_config_update,
+  validate_deal, validate_listing_update, validate_markers_mint,
+  validate_order_output,
 }
 use types.{
-  Bootstrap, Buy, Cleaning, ConfigDatum, Configuration, ContractMode, Delisting,
-  Listing, ListingDatum, Marker, OrderCanceling, OrderChanging, OrderDatum,
-  OrderExecution, OrderPlacing, OutputRefOrPolicyId, Sell,
-}
-
-fn validate_markers_mint(mint: Value, marker: Marker, amount_limit: Int) -> Bool {
-  let Marker(contract_policy_id, marker_asset_name) = marker
-  let minting_by_contract_only = ( mint |> policies() ) == [contract_policy_id]
-  let minted_tokens = assets.tokens(mint, contract_policy_id)
-
-  let nothing_but_markers_minted = ( minted_tokens |> dict.size() ) == 1
-  let is_markers_amount_ok =
-    Some(amount_limit) == dict.get(minted_tokens, marker_asset_name)
-
-  and {
-    minting_by_contract_only?,
-    nothing_but_markers_minted?,
-    is_markers_amount_ok?,
-  }
-}
-
-fn validate_authorization(
-  tx: Transaction,
-  user_keyhash: VerificationKeyHash,
-) -> Bool {
-  let Transaction { extra_signatories, .. } = tx
-  extra_signatories
-    |> list.has(user_keyhash)
-}
-
-fn validate_marked_output(
-  marked_output: Output,
-  marker: Marker,
-  strict_mode: Bool,
-) -> Bool {
-  let Output { value, address, .. } = marked_output
-  let Marker(contract_policy_id, marker_asset_name) = marker
-
-  let check_function =
-    when strict_mode is {
-      True -> has_nft_strict
-      False -> has_nft
-    }
-
-  let is_output_marked_properly =
-    value
-      |> check_function(contract_policy_id, marker_asset_name)
-
-  let is_output_sent_to_contract =
-    address == Address(Script(contract_policy_id), None)
-  and {
-    is_output_marked_properly?,
-    is_output_sent_to_contract?,
-  }
-}
-
-fn validate_marked_input(
-  marked_input: Input,
-  marker: Marker,
-  strict_mode: Bool,
-) -> Bool {
-  let Input { output, .. } = marked_input
-  validate_marked_output(output, marker, strict_mode)
-}
-
-fn validate_config_update(
-  tx: Transaction,
-  contract_address: Address,
-  contract_policy_id: PolicyId,
-  current_config_datum: Option<Data>,
-) -> Bool {
-  expect Transaction {
-    inputs: tx_inputs,
-    outputs: [contract_config_output, ..rest_outputs],
-    mint: minted_value,
-    extra_signatories,
-    ..
-  } = tx
-
-  let tx_approved_by_prev_operator =
-    if current_config_datum == None {
-      expect [bootstrap_input] = tx_inputs
-      let expected_bootstrap_utxo_ref =
-        OutputReference(
-          contract_bootstrap_utxo_hash,
-          contract_bootstrap_utxo_index,
-        )
-      bootstrap_input.output_reference == expected_bootstrap_utxo_ref
-    } else {
-      let ConfigDatum { contract_operator_keyhash: prev_operator_keyhash, .. } =
-        current_config_datum |> as_config_datum()
-
-      extra_signatories
-        |> list.has(prev_operator_keyhash)
-    }
-
-  let minting_is_fine =
-    if current_config_datum == None {
-      minted_value
-        |> has_nft_strict(contract_policy_id, contract_config_marker)
-    } else {
-      minted_value == zero
-    }
-
-  expect Output {
-    address: contract_conf_out_address,
-    value: contract_conf_out_value,
-    datum: InlineDatum(contract_conf_out_datum),
-    ..
-  } = contract_config_output
-
-  expect contract_conf_out_datum: ConfigDatum = contract_conf_out_datum
-
-  let ConfigDatum { contract_operator_keyhash: new_operator_keyhash, .. } =
-    contract_conf_out_datum
-
-  let config_output_addr_is_valid =
-    contract_conf_out_address == contract_address
-
-  let config_output_marked_properly =
-    has_nft_strict(
-      contract_conf_out_value,
-      contract_policy_id,
-      contract_config_marker,
-    )
-
-  let is_new_operator_valid =
-    extra_signatories
-      |> list.has(new_operator_keyhash)
-
-  expect [] = find_outputs_by_address(rest_outputs, contract_address)
-
-  and {
-    tx_approved_by_prev_operator?,
-    is_new_operator_valid?,
-    config_output_addr_is_valid?,
-    config_output_marked_properly?,
-    minting_is_fine?,
-  }
-}
-
-fn validate_listing_update(
-  tx: Transaction,
-  contract_policy_id: PolicyId,
-  mode: ContractMode,
-  config_marker: Marker,
-  listing_marker: Marker,
-) -> Bool {
-  let Transaction {
-    reference_inputs: tx_ref_inputs,
-    inputs: tx_inputs,
-    outputs: tx_outputs,
-    mint: tx_mint,
-    extra_signatories: tx_extra_signs,
-    ..
-  } = tx
-
-  let contract_adress = Address(Script(contract_policy_id), None)
-
-  let (listings, markers_count) =
-    when mode is {
-      Listing -> {
-        let listings = tx_outputs |> find_outputs_by_address(contract_adress)
-        (listings, list.length(listings))
-      }
-
-      Delisting -> {
-        let listings =
-          tx_inputs |> to_outputs() |> find_outputs_by_address(contract_adress)
-        (listings, -list.length(listings))
-      }
-      _ -> fail
-    }
-
-  expect [config_ref_input] = tx_ref_inputs
-  let config_is_valid =
-    validate_marked_input(config_ref_input, config_marker, True)
-
-  let ConfigDatum { listing_operator_keyhash, .. } =
-    config_ref_input.output.datum |> as_config_datum()
-
-  let all_listings_are_valid =
-    listings
-      |> list.reduce(
-          True,
-          fn(result, Output { value, datum, .. }) {
-            let ListingDatum { listed_policy_id, listed_asset_name } =
-              datum |> as_listing_datum()
-            and {
-              result,
-              (listed_policy_id != "")?,
-              (listed_asset_name != Some(""))?,
-              (value
-                |> has_nft_strict(contract_policy_id, contract_listing_marker))?,
-            }
-          },
-        )
-
-  let markers_are_ok =
-    validate_markers_mint(tx_mint, listing_marker, markers_count)
-
-  let is_action_authorized = [listing_operator_keyhash] == tx_extra_signs
-
-  and {
-    all_listings_are_valid?,
-    config_is_valid?,
-    markers_are_ok?,
-    is_action_authorized?,
-  }
-}
-
-fn validate_config_output() {
-  todo
-}
-
-fn validate_listing_output() {
-  todo
-}
-
-fn validate_deal(
-  contract_utxo: Output,
-  config: ConfigDatum,
-  listing: ListingDatum,
-  tx_validity_range: Interval,
-  order_marker: Marker,
-  tx_outputs: List<Output>,
-) -> (Bool, Bool) {
-  // First, extract the validated UTXO data
-  let Output { address: contract_address, .. } = contract_utxo
-  // Then the order parameters
-  let OrderDatum {
-    order_type: order_type_init,
-    traded_asset_policy_id: traded_asset_policy_id_init,
-    traded_asset_name: traded_asset_name_init,
-    traded_asset_amount: traded_asset_amount_init,
-    traded_asset_price: traded_asset_price_init,
-    partial_fulfillment_allowed: partial_fulfillment_allowed_init,
-    order_timeout_date: order_timeout_date_init,
-    order_maker_address: order_maker_address_init,
-  } = contract_utxo |> read_order_datum()
-  let ConfigDatum {
-    platform_fee_percent,
-    platform_fee_decimal,
-    platform_fee_min_amount,
-    platform_fee_address,
-    ..
-  } = config
-  let ListingDatum { .. } = listing
-  // Then read the required transaction outputs (there may also be an optional contract output for partial fulfillment)
-  expect [maker_output,
-    taker_output, platform_fee_output, ..rest_outputs] = tx_outputs
-  let Output { address: maker_address, .. } = maker_output
-
-  // Extract maker keyhash
-  expect Address(VerificationKey(order_maker_keyhash), ..) =
-    order_maker_address_init
-
-  // Also validate the maker address:
-  let is_maker_address_correct = maker_address == order_maker_address_init
-
-  // And the fee address as well:
-  let is_platform_address_correct =
-    platform_fee_output.address == platform_fee_address
-  // And that timeouts are respected
-  let is_validity_range_ok = or {
-      order_timeout_date_init == 0,
-      tx_validity_range |> is_entirely_before(order_timeout_date_init),
-    }
-
-  // Precompute the fee percentage
-  let base_fee = platform_fee_percent / pow(10, platform_fee_decimal)
-  // Then check that the deal outputs are correct and compute the deal size
-  let (is_deal_balanced, deal_amount) =
-    when order_type_init is {
-      Buy -> {
-        let maker_income =
-          maker_output.value
-            |> quantity_of(traded_asset_policy_id_init, traded_asset_name_init)
-        let maker_lovelace_income = maker_output.value |> lovelace_of()
-        let taker_income = taker_output.value |> lovelace_of()
-        let platform_fee = platform_fee_output.value |> lovelace_of()
-        let is_deal_balanced = and {
-            (maker_lovelace_income >= if maker_income == traded_asset_amount_init {
-              contract_order_min_ada
-            } else {
-              0
-            })?,
-            (maker_income == ( taker_income + platform_fee ) / traded_asset_price_init)?,
-            (platform_fee == max(
-              maker_income * traded_asset_price_init / ( 100 * base_fee ),
-              platform_fee_min_amount,
-            ))?,
-          }
-        (is_deal_balanced, maker_income)
-      }
-      Sell -> {
-        let maker_income = maker_output.value |> lovelace_of()
-        let taker_income =
-          taker_output.value
-            |> quantity_of(traded_asset_policy_id_init, traded_asset_name_init)
-        let platform_fee = platform_fee_output.value |> lovelace_of()
-        let base_maker_income = taker_income * traded_asset_price_init
-        let is_deal_balanced = and {
-            (maker_income == if taker_income == traded_asset_amount_init {
-              base_maker_income + contract_order_min_ada
-            } else {
-              base_maker_income
-            })?,
-            (platform_fee == max(
-              taker_income * traded_asset_price_init / ( 100 * base_fee ),
-              platform_fee_min_amount,
-            ))?,
-          }
-        (is_deal_balanced, taker_income)
-      }
-    }
-  // Then check whether a deal of this amount is allowed
-  let (is_deal_allowed, is_deal_partial) =
-    if deal_amount < traded_asset_amount_init && partial_fulfillment_allowed_init {
-      // If the deal is partially fulfilled and that is allowed, check that there is a correct contract output with the updated order
-      expect [new_order_output, ..rest_outputs] = rest_outputs
-      // Then check that it is formed and populated correctly:
-      let is_new_order_valid =
-        validate_order_output(
-          new_order_output,
-          order_marker,
-          listing,
-          tx_validity_range,
-          Some(traded_asset_amount_init - deal_amount),
-        )
-      // Then check that the updated order datum has no changes except the asset amount
-      let is_new_order_datum_not_corrupted = {
-        let OrderDatum {
-          order_type: order_type_new,
-          traded_asset_policy_id: traded_asset_policy_id_new,
-          traded_asset_name: traded_asset_name_new,
-          traded_asset_amount: traded_asset_amount_new,
-          traded_asset_price: traded_asset_price_new,
-          partial_fulfillment_allowed: partial_fulfillment_allowed_new,
-          order_timeout_date: order_timeout_date_new,
-          order_maker_address: order_maker_address_new,
-        } = new_order_output |> read_order_datum()
-        and {
-          (order_type_new == order_type_init)?,
-          (traded_asset_policy_id_new == traded_asset_policy_id_init)?,
-          (traded_asset_name_new == traded_asset_name_init)?,
-          (traded_asset_amount_new == traded_asset_amount_init - deal_amount)?,
-          (traded_asset_price_new == traded_asset_price_init)?,
-          (partial_fulfillment_allowed_new == partial_fulfillment_allowed_init)?,
-          (order_timeout_date_new == order_timeout_date_init)?,
-          (order_maker_address_new == order_maker_address_init)?,
-        }
-      }
-      // Then make sure there are no more contract outputs left
-      expect [] = rest_outputs |> find_outputs_by_address(contract_address)
-      (and {
-          is_new_order_valid?,
-          is_new_order_datum_not_corrupted?,
-        }, True)
-    } else if deal_amount == traded_asset_amount_init {
-      // If the deal amount equals the order amount
-      // Make sure there are no more contract or maker outputs left
-      (and {
-          ([] == ( rest_outputs |> find_outputs_by_address(contract_address) ))?,
-          ([] == ( rest_outputs |> find_outputs_by_address(maker_address) ))?,
-        }, False)
-    } else {
-      // All other cases are invalid
-      (False, False)
-    }
-  // Then ensure that the maker received nothing except ada + traded_asset
-  let is_maker_output_ok =
-    ( maker_output.value |> policies() ) == when order_type_init is {
-      Buy -> ["", traded_asset_policy_id_init]
-      Sell -> [""]
-    }
-
-  (and {
-      is_maker_address_correct?,
-      is_maker_output_ok?,
-      is_platform_address_correct?,
-      is_validity_range_ok?,
-      is_deal_allowed?,
-      is_deal_balanced?,
-    }, is_deal_partial)
-}
-
-fn validate_order_output(
-  order_output: Output,
-  order_marker: Marker,
-  listing_data: ListingDatum,
-  tx_validity_range: Interval,
-  expected_asset_amount: Option<Int>,
-) {
-  let Marker(contract_policy_id, order_marker_asset_name) = order_marker
-  let Output { value: order_value, .. } = order_output
-
-  let ListingDatum { listed_policy_id, listed_asset_name } = listing_data
-
-  let OrderDatum {
-    order_type,
-    traded_asset_policy_id,
-    traded_asset_name,
-    traded_asset_amount,
-    traded_asset_price,
-    order_timeout_date,
-    ..
-  } = order_output |> read_order_datum()
-
-  let asset_price_is_ok = traded_asset_price > 0
-
-  let is_output_marker_ok =
-    order_output
-      |> validate_marked_output(order_marker, strict_mode: False)
-
-  let is_traded_asset_listed = and {
-      (traded_asset_policy_id == listed_policy_id)?,
-      when listed_asset_name is {
-        None -> True
-        Some(asset_name) -> (asset_name == traded_asset_name)?
-      },
-    }
-
-  let desired_order_value =
-    when order_type is {
-      Buy ->
-        from_lovelace(
-          traded_asset_amount * traded_asset_price + contract_order_min_ada,
-        )
-      Sell ->
-        from_lovelace(contract_order_min_ada)
-          |> assets.add(
-              traded_asset_policy_id,
-              traded_asset_name,
-              traded_asset_amount,
-            )
-    }
-      |> assets.add(contract_policy_id, order_marker_asset_name, 1)
-
-  let is_order_value_correct = desired_order_value == order_value
-
-  let is_timeout_correct =
-    if order_timeout_date > 0 {
-      is_entirely_before(tx_validity_range, order_timeout_date)
-    } else {
-      True
-    }
-  let is_order_amount_valid =
-    when expected_asset_amount is {
-      Some(expected_asset_amount) ->
-        expected_asset_amount == traded_asset_amount
-      None -> True
-    }
-
-  and {
-    asset_price_is_ok?,
-    is_output_marker_ok?,
-    is_traded_asset_listed?,
-    is_order_amount_valid?,
-    is_order_value_correct?,
-    is_timeout_correct?,
-  }
+  Bootstrap, Cleaning, ConfigDatum, Configuration, ContractMode, Delisting,
+  Listing, Marker, OrderCanceling, OrderChanging, OrderDatum, OrderExecution,
+  OrderPlacing,
 }
 
 validator exchange {
@@ -503,7 +34,6 @@ validator exchange {
       outputs: tx_outputs,
       validity_range: tx_validity_range,
       mint: tx_mint,
-      extra_signatories: tx_extra_signs,
       ..
     } = tx
 
@@ -523,12 +53,7 @@ validator exchange {
         //   Additional signers:
         //     - a signature corresponding to the `contract_operator_keyhash` field in the datum
 
-        validate_config_update(
-          tx,
-          contract_address,
-          contract_policy_id,
-          current_config_datum: None,
-        )
+        validate_config_update(tx, config_marker)
       Listing ->
         // A correct order placing transaction must contain:
         //   Reference inputs:
@@ -542,13 +67,7 @@ validator exchange {
         //     - exactly 1 `contract_policy_id.contract_listing_marker` per contract output
         //   Additional signers:
         //     - a signature corresponding to the `listing_operator_credential` field in the reference utxo datum
-        validate_listing_update(
-          tx,
-          contract_policy_id,
-          redeemer,
-          config_marker,
-          listing_marker,
-        )
+        validate_listing_update(tx, redeemer, config_marker, listing_marker)
 
       Delisting ->
         // A correct delisting transaction must contain:
@@ -564,13 +83,7 @@ validator exchange {
         //     - exactly -1 `contract_policy_id.contract_listing_marker` per listing input
         //   Additional signers:
         //     - a signature corresponding to the `listing_operator_credential` field in the reference utxo datum
-        validate_listing_update(
-          tx,
-          contract_policy_id,
-          redeemer,
-          config_marker,
-          listing_marker,
-        )
+        validate_listing_update(tx, redeemer, config_marker, listing_marker)
       OrderPlacing -> {
         // A correct order placing transaction must contain:
         //   Inputs: (not validated)
@@ -606,7 +119,10 @@ validator exchange {
             |> list.map(read_listing_datum)
 
         expect OrderDatum {
-          order_maker_address: Address(VerificationKey(order_maker_keyhash), ..),
+          order_maker_address: Address {
+            payment_credential: VerificationKey(order_maker_keyhash),
+            ..
+          },
           ..
         } = contract_output |> read_order_datum()
 
@@ -680,13 +196,9 @@ validator exchange {
             |> to_outputs()
             |> find_outputs_by_address(contract_address)
 
-        expect Output { value: order_value, .. } = order_input_output
-        expect OrderDatum {
-          order_type,
-          order_maker_address,
-          order_timeout_date,
-          ..
-        } = order_input_output |> read_order_datum()
+        let Output { value: order_value, .. } = order_input_output
+        let OrderDatum { order_maker_address, order_timeout_date, .. } =
+          order_input_output |> read_order_datum()
         expect Address {
           payment_credential: VerificationKey(order_maker_keyhash),
           ..
@@ -701,7 +213,7 @@ validator exchange {
                 )
           )
         let only_one_maker_output =
-          [] == ( tx_outputs |> find_outputs_by_address(contract_address) )
+          [] == ( rest |> find_outputs_by_address(order_maker_address) )
         let marker_minted_properly =
           validate_markers_mint(tx_mint, order_marker, -1)
         let is_action_authorized_by_user =
@@ -728,19 +240,13 @@ validator exchange {
     }
   }
 
-  spend(
-    spent_utxo_datum: Option<Data>,
-    redeemer: ContractMode,
-    spent_utxo: OutputReference,
-    tx: Transaction,
-  ) {
+  spend(_, redeemer: ContractMode, spent_utxo: OutputReference, tx: Transaction) {
     let Transaction {
       reference_inputs: tx_ref_inputs,
       inputs: tx_inputs,
       outputs: tx_outputs,
       validity_range: tx_validity_range,
       mint: tx_mint,
-      extra_signatories: tx_extra_signs,
       ..
     } = tx
 
@@ -767,12 +273,7 @@ validator exchange {
         //     - a signature corresponding to the `contract_operator_keyhash` field in the spent utxo datum
         //     - a signature corresponding to the `contract_operator_keyhash` field in the contract tx output datum
 
-        validate_config_update(
-          tx,
-          contract_address,
-          contract_policy_id,
-          current_config_datum: spent_utxo_datum,
-        )
+        validate_config_update(tx, config_marker)
 
       Delisting ->
         // Since the delisting process requires both Spend and Mint checks,

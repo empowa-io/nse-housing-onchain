@@ -1,4 +1,4 @@
-use aiken/interval.{after, before, entirely_after, entirely_before}
+use aiken/interval.{entirely_after, entirely_before}
 use cardano/address.{Address}
 use cardano/assets.{from_asset, from_lovelace, merge, negate}
 use cardano/transaction.{

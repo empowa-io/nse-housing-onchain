@@ -12,8 +12,8 @@ use default.{
   base_platform_fee_decimal_part, base_platform_fee_min_amount,
   base_platform_fee_percent, config_marker, contract_address, contract_policy_id,
   input_placeholder, listing_marker, listing_operator_payment_keyhash,
-  maker_address, maker_payment_keyhash, operator_payment_keyhash, order_marker,
-  output_placeholder, platform_address, taker_address, taker_payment_keyhash,
+  maker_address, operator_payment_keyhash, order_marker, output_placeholder,
+  platform_address, taker_address,
 }
 use nse_housing
 use types.{Buy, ConfigDatum, ListingDatum, OrderDatum, OrderExecution, Sell}
