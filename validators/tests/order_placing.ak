@@ -184,7 +184,6 @@ type BadDatum {
 //     - if `timeout` in the datum points to some date, the upper bound must be before that date
 //   Additional signers:
 //     - a signature corresponding to the `order_maker_keyhash` field in the spent utxo datum
-//     - [optional] operator signature if order placed by operator for another user
 //      - e.g. migration from another version of the contract to a new one 
 
 // Validatiors: Minting only
@@ -255,22 +254,6 @@ test success_buy_wildcard() {
       outputs: [good_buy_order_output, output_placeholder],
       mint: order_marker,
       extra_signatories: [maker_payment_keyhash],
-    },
-  )
-}
-
-test success_order_placed_by_operator() {
-  // Successful transaction placing a buy order for a user, posted by the contract operator
-
-  try(
-    Transaction {
-      ..tx_placeholder,
-      reference_inputs: [
-        good_config_reference_input, good_listing_reference_input_wildcard,
-      ],
-      outputs: [good_buy_order_output, output_placeholder],
-      mint: order_marker,
-      extra_signatories: [operator_payment_keyhash],
     },
   )
 }

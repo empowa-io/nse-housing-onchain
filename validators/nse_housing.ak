@@ -108,7 +108,7 @@ validator exchange {
         let ref_utxos = tx_ref_inputs |> to_outputs()
         expect [contract_output, ..rest] = tx_outputs
 
-        expect [ConfigDatum { is_market_open, contract_operator_keyhash, .. }] =
+        expect [ConfigDatum { is_market_open, .. }] =
           ref_utxos
             |> find_outputs_by_marker(config_marker, strict_mode: True)
             |> list.map(read_config_datum)
@@ -140,16 +140,8 @@ validator exchange {
         let marker_minted_properly =
           validate_markers_mint(tx_mint, order_marker, 1)
 
-        let is_action_authorized_by_user =
+        let is_action_authorized =
           validate_authorization(tx, order_maker_keyhash)
-
-        let is_action_authorized_by_operator =
-          validate_authorization(tx, contract_operator_keyhash)
-
-        let is_action_authorized = or {
-            is_action_authorized_by_user,
-            is_action_authorized_by_operator,
-          }
 
         and {
           is_market_open?,
