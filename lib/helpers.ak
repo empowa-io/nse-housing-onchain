@@ -202,7 +202,7 @@ pub fn validate_order_output(
   listing_data: ListingDatum,
   tx_validity_range: Interval,
   expected_asset_amount: Option<Int>,
-) {
+) -> Bool {
   let Marker(contract_policy_id, order_marker_asset_name) = order_marker
   let Output { value: order_value, .. } = order_output
 
