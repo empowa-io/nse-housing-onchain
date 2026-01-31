@@ -3,19 +3,19 @@ use aiken/interval.{is_entirely_after}
 use cardano/address.{Address, VerificationKey}
 use cardano/assets.{PolicyId, from_asset, merge, policies, zero}
 use cardano/transaction.{Output, OutputReference, Transaction}
-use config.{
-  contract_config_marker, contract_listing_marker, contract_order_marker,
-}
+use config.{contract_listing_marker, contract_order_marker}
 use helpers.{
-  discover_contract_utxo_addr_pid, find_outputs_by_address,
+  build_markers, discover_contract_utxo_addr_pid, find_outputs_by_address,
   find_outputs_by_marker, read_config_datum, read_listing_datum,
-  read_order_datum, to_outputs, validate_authorization, validate_config_update,
-  validate_deal, validate_listing_update, validate_markers_mint,
+  read_order_datum, to_outputs, validate_authorization, validate_markers_mint,
   validate_order_output,
+}
+use subvalidators.{
+  validate_config_update, validate_deal, validate_listing_update,
 }
 use types.{
   Bootstrap, Cleaning, ConfigDatum, Configuration, ContractMode, Delisting,
-  Listing, Marker, OrderCanceling, OrderChanging, OrderDatum, OrderExecution,
+  Listing, OrderCanceling, OrderChanging, OrderDatum, OrderExecution,
   OrderPlacing,
 }
 
@@ -24,9 +24,8 @@ validator exchange {
     let (contract_utxo, contract_address, _) =
       discover_contract_utxo_addr_pid(tx, contract_policy_id)
 
-    let config_marker = Marker(contract_policy_id, contract_config_marker)
-    let listing_marker = Marker(contract_policy_id, contract_listing_marker)
-    let order_marker = Marker(contract_policy_id, contract_order_marker)
+    let (config_marker, listing_marker, order_marker) =
+      build_markers(contract_policy_id)
 
     let Transaction {
       reference_inputs: tx_ref_inputs,
@@ -117,7 +116,6 @@ validator exchange {
           ref_utxos
             |> find_outputs_by_marker(listing_marker, strict_mode: True)
             |> list.map(read_listing_datum)
-
         expect OrderDatum {
           order_maker_address: Address {
             payment_credential: VerificationKey(order_maker_keyhash),
@@ -244,9 +242,8 @@ validator exchange {
 
     expect (Some(contract_utxo), contract_address, contract_policy_id) =
       discover_contract_utxo_addr_pid(tx, spent_utxo)
-    let config_marker = Marker(contract_policy_id, contract_config_marker)
-    let listing_marker = Marker(contract_policy_id, contract_listing_marker)
-    let order_marker = Marker(contract_policy_id, contract_order_marker)
+    let (config_marker, listing_marker, order_marker) =
+      build_markers(contract_policy_id)
     when redeemer is {
       Configuration ->
         // A correct reconfiguration transaction must contain:
