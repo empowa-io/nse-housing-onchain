@@ -16,6 +16,8 @@ An important point is that the contract allows trading only for assets that have
 
 This contract also uses a dynamic configuration mechanism and can be flexibly reconfigured depending on the situation. It is not hard-bound to specific keys and allows changing parameters and operators, if needed, without redeploying and migrating.
 
+A key feature is that while the contract has centralized administration (a listing operator and a configuration operator), it has no hard dependency on any backend and does not rely on any off-chain logic. Any user can interact with it, even by constructing transactions manually. Such transactions will not require any signatures other than the user's signatures.
+
 ---
 
 ## **Roles and Capabilities**
