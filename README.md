@@ -3,6 +3,18 @@
 ### *(On-chain component, Cardano)*
 
 This smart contract implements a mechanism for buying and selling tokens on the **Cardano** blockchain.
+It enables decentralized trading of assets for ADA (and vice versa).
+The trading process consists of two stages:
+1) One party places an order.
+2) Another party accepts it (fully or partially).
+
+The contract's purpose is to enforce fairness of the deal, guarantee the safety of users' funds, and remove dependence on the vendor.
+
+This is achieved by strict separation of roles and guarantees for each party. For example, even the contract operator cannot appropriate participants' funds. Even if an order is canceled manually, the funds are returned to the order owner.
+
+An important point is that the contract allows trading only for assets that have passed listing.
+
+This contract also uses a dynamic configuration mechanism and can be flexibly reconfigured depending on the situation. It is not hard-bound to specific keys and allows changing parameters and operators, if needed, without redeploying and migrating.
 
 ---
 
