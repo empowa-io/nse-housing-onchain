@@ -387,7 +387,7 @@ validator exchange {
         let is_action_authorized_by_new_owner =
           validate_authorization(tx, new_order_maker_keyhash)
 
-        let is_action_authorized = or {
+        let is_action_authorized = and {
             is_action_authorized_by_old_owner,
             is_action_authorized_by_new_owner,
           }
