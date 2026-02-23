@@ -50,7 +50,7 @@ const good_config_reference_input =
     },
   }
 
-const sell_order_datum_with_timeout =
+const good_sell_order_datum_with_timeout =
   OrderDatum {
     order_type: Sell,
     traded_asset_policy_id: approved_policy_id,
@@ -73,7 +73,7 @@ const sell_order_input =
     output: Output {
       ..output_placeholder,
       address: contract_address,
-      datum: InlineDatum(sell_order_datum_with_timeout),
+      datum: InlineDatum(good_sell_order_datum_with_timeout),
       value: order_marker
         |> merge(order_subject)
         |> merge(order_ada),
@@ -189,7 +189,37 @@ test success_order_canceling_unauthorized() {
       ..sell_order_input,
       output: Output {
         ..sell_order_input.output,
-        datum: InlineDatum(sell_order_datum_with_timeout),
+        datum: InlineDatum(good_sell_order_datum_with_timeout),
+      },
+    }
+
+  try(
+    Transaction {
+      ..tx_placeholder,
+      reference_inputs: [good_config_reference_input],
+      inputs: [sell_order_input, input_placeholder],
+      outputs: [good_maker_output, output_placeholder],
+      mint: negate(order_marker),
+      validity_range: entirely_after(timeout),
+    },
+    sell_order_input,
+  )
+}
+
+test fail_order_canceling_unauthorized_unlimited_order() fail {
+  // Successful attempt to cancel the order without authorization (after timeout)
+
+  let sell_order_input =
+    Input {
+      ..sell_order_input,
+      output: Output {
+        ..sell_order_input.output,
+        datum: InlineDatum(
+          OrderDatum {
+            ..good_sell_order_datum_with_timeout,
+            order_timeout_date: 0,
+          },
+        ),
       },
     }
 

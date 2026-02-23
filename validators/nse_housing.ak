@@ -210,8 +210,10 @@ validator exchange {
           validate_authorization(tx, order_maker_keyhash)
         let is_action_authorized_by_operator =
           validate_authorization(tx, contract_operator_keyhash)
-        let is_tx_outdated =
-          tx_validity_range |> is_entirely_after(order_timeout_date)
+        let is_tx_outdated = and {
+            tx_validity_range |> is_entirely_after(order_timeout_date),
+            order_timeout_date != 0,
+          }
         let is_action_authorized = or {
             (is_action_authorized_by_user && is_market_open)?,
             is_action_authorized_by_operator?,
