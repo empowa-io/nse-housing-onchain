@@ -216,11 +216,10 @@ validator exchange {
           }
         let is_action_authorized = or {
             (is_action_authorized_by_user && is_market_open)?,
-            is_action_authorized_by_operator?,
             is_tx_outdated?,
+            is_action_authorized_by_operator?,
           }
         and {
-          is_market_open?,
           is_maker_output_address_valid?,
           is_maker_output_value_valid?,
           only_one_maker_output?,

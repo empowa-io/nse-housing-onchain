@@ -181,6 +181,31 @@ test success_order_canceling_authorized_operator() {
   )
 }
 
+test success_order_canceling_authorized_operator_stopped_market() {
+  // Successful attempt to cancel the order by the contract operator
+
+  let config_ref =
+    Input {
+      ..good_config_reference_input,
+      output: Output {
+        ..good_config_reference_input.output,
+        datum: InlineDatum(ConfigDatum { ..conf_datum, is_market_open: False }),
+      },
+    }
+
+  try(
+    Transaction {
+      ..tx_placeholder,
+      reference_inputs: [config_ref],
+      inputs: [sell_order_input, input_placeholder],
+      outputs: [good_maker_output, output_placeholder],
+      mint: negate(order_marker),
+      extra_signatories: [operator_payment_keyhash],
+    },
+    sell_order_input,
+  )
+}
+
 test success_order_canceling_unauthorized() {
   // Successful attempt to cancel the order without authorization (after timeout)
 
