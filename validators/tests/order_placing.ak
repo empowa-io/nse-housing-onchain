@@ -258,6 +258,31 @@ test success_buy_wildcard() {
   )
 }
 
+test fail_bad_order_configuration() fail {
+  // Successful transaction placing a buy order for 42 listed assets
+  let bad_buy_order_output =
+    Output {
+      ..good_buy_order_output,
+      value: order_marker
+        |> merge(from_lovelace(contract_order_min_ada)),
+      datum: InlineDatum(
+        OrderDatum { ..good_buy_order_datum, traded_asset_amount: 0 },
+      ),
+    }
+
+  try(
+    Transaction {
+      ..tx_placeholder,
+      reference_inputs: [
+        good_config_reference_input, good_listing_reference_input_wildcard,
+      ],
+      outputs: [bad_buy_order_output, output_placeholder],
+      mint: order_marker,
+      extra_signatories: [maker_payment_keyhash],
+    },
+  )
+}
+
 // Failed cases
 
 test fail_sell_not_allowed_asset_name() fail {

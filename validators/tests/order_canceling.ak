@@ -232,7 +232,7 @@ test success_order_canceling_unauthorized() {
 }
 
 test fail_order_canceling_unauthorized_unlimited_order() fail {
-  // Successful attempt to cancel the order without authorization (after timeout)
+  // fail attempt to cancel the order without authorization (no timeout)
 
   let sell_order_input =
     Input {

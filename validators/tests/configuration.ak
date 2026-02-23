@@ -266,6 +266,72 @@ test failed_bad_datum() fail {
   )
 }
 
+test failed_bad_platform_fee_percent() fail {
+  // Datum is correct, but platform_fee_percent parameter is not 
+
+  let bad_contract_output =
+    Output {
+      ..good_contract_output,
+      datum: InlineDatum(
+        ConfigDatum { ..good_conf_datum_new, platform_fee_percent: -1 },
+      ),
+    }
+
+  try(
+    Transaction {
+      ..tx_placeholder,
+      inputs: [good_contract_config_input, input_placeholder],
+      outputs: [bad_contract_output, output_placeholder],
+      extra_signatories: [operator_payment_keyhash],
+    },
+    good_contract_config_input,
+  )
+}
+
+test failed_bad_platform_fee_decimal() fail {
+  // Datum is correct, but platform_fee_decimal parameter is not 
+
+  let bad_contract_output =
+    Output {
+      ..good_contract_output,
+      datum: InlineDatum(
+        ConfigDatum { ..good_conf_datum_new, platform_fee_decimal: 0 },
+      ),
+    }
+
+  try(
+    Transaction {
+      ..tx_placeholder,
+      inputs: [good_contract_config_input, input_placeholder],
+      outputs: [bad_contract_output, output_placeholder],
+      extra_signatories: [operator_payment_keyhash],
+    },
+    good_contract_config_input,
+  )
+}
+
+test failed_bad_platform_fee_min_amount() fail {
+  // Datum is correct, but platform_fee_decimal parameter is not 
+
+  let bad_contract_output =
+    Output {
+      ..good_contract_output,
+      datum: InlineDatum(
+        ConfigDatum { ..good_conf_datum_new, platform_fee_min_amount: -1 },
+      ),
+    }
+
+  try(
+    Transaction {
+      ..tx_placeholder,
+      inputs: [good_contract_config_input, input_placeholder],
+      outputs: [bad_contract_output, output_placeholder],
+      extra_signatories: [operator_payment_keyhash],
+    },
+    good_contract_config_input,
+  )
+}
+
 test failed_minting_presents() fail {
   // Incorrect action violating the rule:
   //   Minting:

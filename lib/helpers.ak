@@ -217,6 +217,7 @@ pub fn validate_order_output(
   } = order_output |> read_order_datum()
 
   let is_asset_price_ok = traded_asset_price > 0
+  let is_asset_amount_ok = traded_asset_amount > 0
 
   let is_output_marker_ok =
     order_output
@@ -262,6 +263,7 @@ pub fn validate_order_output(
 
   and {
     is_asset_price_ok?,
+    is_asset_amount_ok?,
     is_output_marker_ok?,
     is_traded_asset_listed?,
     is_order_amount_valid?,

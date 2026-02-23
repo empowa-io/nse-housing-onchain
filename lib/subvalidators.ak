@@ -32,8 +32,13 @@ pub fn validate_config_update(tx: Transaction, config_marker: Marker) -> Bool {
   // Build the contract address
   let contract_address = Address(Script(contract_policy_id), None)
   // Get the operator keyhash specified in the new configuration UTXO
-  let ConfigDatum { contract_operator_keyhash: new_operator_keyhash, .. } =
-    contract_config_output |> read_config_datum()
+  let ConfigDatum {
+    contract_operator_keyhash: new_operator_keyhash,
+    platform_fee_percent,
+    platform_fee_decimal,
+    platform_fee_min_amount,
+    ..
+  } = contract_config_output |> read_config_datum()
   // Then extract UTXOs from inputs belonging to the contract, if any
   let contract_inputs_outs =
     tx_inputs |> to_outputs() |> find_outputs_by_address(contract_address)
@@ -44,6 +49,11 @@ pub fn validate_config_update(tx: Transaction, config_marker: Marker) -> Bool {
     when contract_inputs_outs is {
       [] -> True
       _ -> False
+    }
+  let parameters_are_fine = and {
+      (platform_fee_percent >= 0)?,
+      (platform_fee_decimal >= 1)?,
+      (platform_fee_min_amount >= 0)?,
     }
 
   // Check whether the operator from the previous config approved this transaction
@@ -89,6 +99,7 @@ pub fn validate_config_update(tx: Transaction, config_marker: Marker) -> Bool {
     tx |> validate_authorization(new_operator_keyhash)
 
   and {
+    parameters_are_fine?,
     tx_approved_by_prev_operator?,
     tx_approved_by_new_operator?,
     is_config_output_ok?,
