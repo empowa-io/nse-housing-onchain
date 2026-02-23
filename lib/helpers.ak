@@ -2,6 +2,8 @@ use aiken/collection/dict
 use aiken/collection/list
 use aiken/crypto.{VerificationKeyHash}
 use aiken/interval.{Interval, is_entirely_before}
+use aiken/math.{pow}
+use aiken/math/rational
 use cardano/address.{Address, Script}
 use cardano/assets.{
   AssetName, PolicyId, Value, from_lovelace, has_nft, has_nft_strict, policies,
@@ -285,4 +287,15 @@ pub fn validate_asset_listing(
       Some(asset_name) -> (asset_name == traded_asset_name)?
     },
   }
+}
+
+pub fn calc_fee(
+  base_platform_fee_percent: Int,
+  base_platform_fee_decimal_part: Int,
+  amount: Int,
+) -> Int {
+  let denominator = 100 * pow(10, base_platform_fee_decimal_part)
+  expect Some(fee) =
+    rational.new(amount * base_platform_fee_percent, denominator)
+  fee |> rational.round_even()
 }

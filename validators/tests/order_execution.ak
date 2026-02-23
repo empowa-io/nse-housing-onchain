@@ -1,5 +1,4 @@
 use aiken/interval.{entirely_before}
-use aiken/math.{pow}
 use cardano/assets.{from_asset, from_lovelace, merge, negate, zero}
 use cardano/transaction.{
   InlineDatum, Input, NoDatum, Output, Transaction,
@@ -15,6 +14,7 @@ use default.{
   maker_address, operator_payment_keyhash, order_marker, output_placeholder,
   platform_address, taker_address,
 }
+use helpers.{calc_fee}
 use nse_housing
 use types.{Buy, ConfigDatum, ListingDatum, OrderDatum, OrderExecution, Sell}
 
@@ -30,14 +30,14 @@ const deal_amount_asset = 10
 
 const timeout = 10
 
-const base_fee =
-  base_platform_fee_percent / pow(10, base_platform_fee_decimal_part)
+const fee_calc =
+  calc_fee(base_platform_fee_percent, base_platform_fee_decimal_part, _)
 
 const platform_fee_full_exec_amount =
-  from_lovelace(order_asset_amount * order_price_per_unit / ( 100 * base_fee ))
+  from_lovelace(fee_calc(order_asset_amount * order_price_per_unit))
 
 const platform_fee_partial_exec_amount =
-  from_lovelace(deal_amount_asset * order_price_per_unit / ( 100 * base_fee ))
+  from_lovelace(fee_calc(deal_amount_asset * order_price_per_unit))
 
 const good_order_min_ada = from_lovelace(contract_order_min_ada)
 

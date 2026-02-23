@@ -1,6 +1,6 @@
 use aiken/collection/list
 use aiken/interval.{Interval, is_entirely_before}
-use aiken/math.{max, pow}
+use aiken/math.{max}
 use cardano/address.{Address, Script}
 use cardano/assets.{lovelace_of, policies, quantity_of, zero}
 use cardano/transaction.{Input, Output, OutputReference, Transaction}
@@ -9,7 +9,7 @@ use config.{
   contract_order_min_ada,
 }
 use helpers.{
-  find_outputs_by_address, read_config_datum, read_listing_datum,
+  calc_fee, find_outputs_by_address, read_config_datum, read_listing_datum,
   read_order_datum, to_outputs, validate_asset_listing, validate_authorization,
   validate_marked_input, validate_marked_output, validate_markers_mint,
   validate_order_output,
@@ -52,7 +52,7 @@ pub fn validate_config_update(tx: Transaction, config_marker: Marker) -> Bool {
     }
   let parameters_are_fine = and {
       (platform_fee_percent >= 0)?,
-      (platform_fee_decimal >= 1)?,
+      (platform_fee_decimal >= 0)?,
       (platform_fee_min_amount >= 0)?,
     }
 
@@ -239,8 +239,9 @@ pub fn validate_deal(
       order_timeout_date_init == 0,
       tx_validity_range |> is_entirely_before(order_timeout_date_init),
     }
-  // Precompute the fee percentage
-  let base_fee = platform_fee_percent / pow(10, platform_fee_decimal)
+  // Prepare the fee calculation function
+  let fee_calc =
+    calc_fee(platform_fee_percent, platform_fee_decimal, _)
   // Then check that the deal outputs are correct and compute the deal size
   let (is_deal_fair, deal_amount) =
     when order_type_init is {
@@ -267,7 +268,7 @@ pub fn validate_deal(
             (maker_income == ( taker_income + platform_fee ) / traded_asset_price_init)?,
             // And the fee itself must be correct
             (platform_fee == max(
-              maker_income * traded_asset_price_init / ( 100 * base_fee ),
+              fee_calc(maker_income * traded_asset_price_init),
               platform_fee_min_amount,
             ))?,
           }
@@ -296,7 +297,7 @@ pub fn validate_deal(
             (taker_income == maker_income / traded_asset_price_init)?,
             // The platform must receive its fee
             (platform_fee == max(
-              taker_income * traded_asset_price_init / ( 100 * base_fee ),
+              fee_calc(taker_income * traded_asset_price_init),
               platform_fee_min_amount,
             ))?,
           }

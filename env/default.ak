@@ -27,10 +27,10 @@ pub const output_placeholder =
 pub const input_placeholder =
   Input { output_reference: utxo_ref_placeholder, output: output_placeholder }
 
-pub const base_platform_fee_decimal_part = 2
+pub const base_platform_fee_decimal_part = 0
 
 //1%, because there is 10^2 decimal part
-pub const base_platform_fee_percent = 100
+pub const base_platform_fee_percent = 123
 
 pub const base_platform_fee_min_amount = 1_000_000
 
