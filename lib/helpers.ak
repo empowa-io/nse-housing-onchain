@@ -4,7 +4,7 @@ use aiken/crypto.{VerificationKeyHash}
 use aiken/interval.{Interval, is_entirely_before}
 use cardano/address.{Address, Script}
 use cardano/assets.{
-  PolicyId, Value, from_lovelace, has_nft, has_nft_strict, policies,
+  AssetName, PolicyId, Value, from_lovelace, has_nft, has_nft_strict, policies,
 }
 use cardano/transaction.{
   Datum, InlineDatum, Input, Output, OutputReference, Transaction, find_input,
@@ -206,8 +206,6 @@ pub fn validate_order_output(
   let Marker(contract_policy_id, order_marker_asset_name) = order_marker
   let Output { value: order_value, .. } = order_output
 
-  let ListingDatum { listed_policy_id, listed_asset_name } = listing_data
-
   let OrderDatum {
     order_type,
     traded_asset_policy_id,
@@ -224,13 +222,12 @@ pub fn validate_order_output(
     order_output
       |> validate_marked_output(order_marker, strict_mode: False)
 
-  let is_traded_asset_listed = and {
-      (traded_asset_policy_id == listed_policy_id)?,
-      when listed_asset_name is {
-        None -> True
-        Some(asset_name) -> (asset_name == traded_asset_name)?
-      },
-    }
+  let is_traded_asset_listed =
+    validate_asset_listing(
+      traded_asset_policy_id,
+      traded_asset_name,
+      listing_data,
+    )
 
   let desired_order_value =
     when order_type is {
@@ -270,5 +267,20 @@ pub fn validate_order_output(
     is_order_amount_valid?,
     is_order_value_correct?,
     is_timeout_correct?,
+  }
+}
+
+pub fn validate_asset_listing(
+  traded_policy_id: PolicyId,
+  traded_asset_name: AssetName,
+  listing_data: ListingDatum,
+) -> Bool {
+  let ListingDatum { listed_policy_id, listed_asset_name } = listing_data
+  and {
+    (traded_policy_id == listed_policy_id)?,
+    when listed_asset_name is {
+      None -> True
+      Some(asset_name) -> (asset_name == traded_asset_name)?
+    },
   }
 }

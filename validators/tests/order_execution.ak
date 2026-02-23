@@ -665,6 +665,45 @@ test fail_bad_listing_ref() fail {
   )
 }
 
+test fail_incorrect_listing_ref() fail {
+  // Incorrect action violating the rule:
+  //   Reference inputs[2]:
+  //     - Reference to the `listing eUTxO` allowing interaction with the asset being listed in the order
+  // The listing is valid, but it does not correspond to the asset in the order.
+
+  let bad_listing_reference_input =
+    Input {
+      ..good_listing_reference_input_no_wildcard,
+      output: Output {
+        ..good_listing_reference_input_no_wildcard.output,
+        datum: InlineDatum(
+          ListingDatum {
+            ..good_listing_datum_no_wildcard,
+            listed_policy_id: "bad policy",
+          },
+        ),
+      },
+    }
+
+  try(
+    Transaction {
+      ..tx_placeholder,
+      reference_inputs: [
+        good_config_reference_input, bad_listing_reference_input,
+        input_placeholder,
+      ],
+      inputs: [good_sell_order_input, input_placeholder],
+      outputs: [
+        good_sell_maker_output_full_exec, good_sell_taker_output_full_exec,
+        good_platform_fee_output_full_exec, output_placeholder,
+      ],
+      mint: negate(order_marker),
+      validity_range: entirely_before(timeout),
+    },
+    good_sell_order_input,
+  )
+}
+
 test fail_many_order_inputs() fail {
   // Incorrect action violating the rule:
   //   Inputs[>=1]:

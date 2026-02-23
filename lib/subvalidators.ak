@@ -10,8 +10,9 @@ use config.{
 }
 use helpers.{
   find_outputs_by_address, read_config_datum, read_listing_datum,
-  read_order_datum, to_outputs, validate_authorization, validate_marked_input,
-  validate_marked_output, validate_markers_mint, validate_order_output,
+  read_order_datum, to_outputs, validate_asset_listing, validate_authorization,
+  validate_marked_input, validate_marked_output, validate_markers_mint,
+  validate_order_output,
 }
 use types.{
   Buy, ConfigDatum, ContractMode, Delisting, Listing, ListingDatum, Marker,
@@ -203,7 +204,7 @@ pub fn validate_deal(
     platform_fee_address,
     ..
   } = config
-  let ListingDatum { .. } = listing
+
   // Then read the required transaction outputs (there may also be an optional contract output for partial fulfillment)
   expect [maker_output,
     taker_output, platform_fee_output, ..rest_outputs] = tx_outputs
@@ -211,6 +212,13 @@ pub fn validate_deal(
 
   // Also validate the maker address:
   let is_maker_address_correct = maker_address == order_maker_address_init
+  // Validate if traded asset listed
+  let is_traded_asset_listed =
+    validate_asset_listing(
+      traded_asset_policy_id_init,
+      traded_asset_name_init,
+      listing,
+    )
 
   // And the fee address as well:
   let is_platform_address_correct =
@@ -220,7 +228,6 @@ pub fn validate_deal(
       order_timeout_date_init == 0,
       tx_validity_range |> is_entirely_before(order_timeout_date_init),
     }
-
   // Precompute the fee percentage
   let base_fee = platform_fee_percent / pow(10, platform_fee_decimal)
   // Then check that the deal outputs are correct and compute the deal size
@@ -347,6 +354,7 @@ pub fn validate_deal(
     }
 
   (and {
+      is_traded_asset_listed?,
       is_maker_address_correct?,
       is_maker_output_ok?,
       is_platform_address_correct?,
