@@ -123,7 +123,7 @@ const good_maker_buy_output =
 //     - exactly -1 `contract_policy_id.contract_order_marker`
 //   Validity range[optional]:
 //     - may be omitted if cancellation is performed by an authorized party
-//     - For unauthorized closure, if `timeout` in the datum points to some date, the upper bound must be after that date
+//     - For unauthorized closure, if `timeout` in the datum points to some date, the lower bound must be after that date
 //   Additional signers:    
 //     a) a signature corresponding to the `order_maker_keyhash` field in the spent utxo datum
 //     b) OR a signature corresponding to the `contract_operator_keyhash` field in the config utxo datum
@@ -553,7 +553,7 @@ test fail_config_burning() fail {
 test fail_unauthorized_canceling_before_timeout() fail {
   // Incorrect action violating the rule:
   //   Validity range[optional]:
-  //     - For unauthorized closure, if `timeout` in the datum points to some date, the upper bound must be after that date
+  //     - For unauthorized closure, if `timeout` in the datum points to some date, the lower bound must be after that date
 
   // Attempt to cancel an order without authorization before the timeout expires
   try(

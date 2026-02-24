@@ -337,7 +337,7 @@ Cancellation by the order owner or the operator.
   * Validity range:
 
     * Optional if cancellation is authorized (owner or operator)
-    * If unauthorized, the upper bound must be **after** the timeout
+    * If unauthorized, the lower bound must be **after** the timeout
   * Signatures:
 
     * `order_maker_keyhash` **or** `contract_operator_keyhash`

@@ -83,8 +83,8 @@ type BadDatum {
 // Mostly checks that protect against human error in case the operator makes a mistake
 // It also covers potential attack vectors.
 
-// A correct order placing transaction must contain:
-//   Reference inputs:
+// A correct listing transaction must contain:
+//   Reference inputs[1]:
 //     - Reference to the contract valid `config eUTxO`
 //   Outputs[>=1]:
 //     - one or many outputs to the contract address containing:
