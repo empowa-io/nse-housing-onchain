@@ -6,9 +6,10 @@ use cardano/transaction.{
 }
 use default.{
   base_platform_fee_decimal_part, base_platform_fee_min_amount,
-  base_platform_fee_percent, config_marker, contract_address, contract_policy_id,
-  input_placeholder, listing_marker, listing_operator_payment_keyhash,
-  operator_payment_keyhash, order_marker, output_placeholder, platform_address,
+  base_platform_fee_percent, config_marker, contract_address,
+  contract_order_min_ada_amount, contract_policy_id, input_placeholder,
+  listing_marker, listing_operator_payment_keyhash, operator_payment_keyhash,
+  order_marker, output_placeholder, platform_address,
 }
 use nse_housing
 use types.{Cleaning, ConfigDatum}
@@ -21,6 +22,7 @@ const good_conf_datum =
     platform_fee_address: platform_address,
     contract_operator_keyhash: operator_payment_keyhash,
     listing_operator_keyhash: listing_operator_payment_keyhash,
+    contract_order_min_ada: contract_order_min_ada_amount,
     is_market_open: True,
   }
 
@@ -114,6 +116,7 @@ fn try(tx: Transaction, utxos: List<Input>) -> Bool {
 // Success cases
 test success_cleaning() {
   // Successful garbage cleanup attempt
+
   try(
     Transaction {
       ..tx_placeholder,
@@ -133,6 +136,7 @@ test fail_no_config_ref_input() fail {
   //     - Reference to the contract valid `config eUTxO`
 
   // The user did not include the config to bypass authentication
+
   try(
     Transaction {
       ..tx_placeholder,

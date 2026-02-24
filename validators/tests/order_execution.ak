@@ -4,15 +4,14 @@ use cardano/transaction.{
   InlineDatum, Input, NoDatum, Output, Transaction,
   placeholder as tx_placeholder,
 }
-use config.{
-  contract_config_marker, contract_listing_marker, contract_order_min_ada,
-}
+use config.{contract_config_marker, contract_listing_marker}
 use default.{
   base_platform_fee_decimal_part, base_platform_fee_min_amount,
-  base_platform_fee_percent, config_marker, contract_address, contract_policy_id,
-  input_placeholder, listing_marker, listing_operator_payment_keyhash,
-  maker_address, operator_payment_keyhash, order_marker, output_placeholder,
-  platform_address, taker_address,
+  base_platform_fee_percent, config_marker, contract_address,
+  contract_order_min_ada_amount, contract_policy_id, input_placeholder,
+  listing_marker, listing_operator_payment_keyhash, maker_address,
+  operator_payment_keyhash, order_marker, output_placeholder, platform_address,
+  taker_address,
 }
 use helpers.{calc_fee}
 use nse_housing
@@ -39,14 +38,14 @@ const platform_fee_full_exec_amount =
 const platform_fee_partial_exec_amount =
   from_lovelace(fee_calc(deal_amount_asset * order_price_per_unit))
 
-const good_order_min_ada = from_lovelace(contract_order_min_ada)
+const good_order_min_ada = from_lovelace(contract_order_min_ada_amount)
 
 const good_order_full_asset_value =
   from_asset(approved_policy_id, approved_asset_name, order_asset_amount)
 
 const good_order_full_ada_value =
   from_lovelace(
-    order_asset_amount * order_price_per_unit + contract_order_min_ada,
+    order_asset_amount * order_price_per_unit + contract_order_min_ada_amount,
   )
 
 const good_order_partial_sell_asset_value =
@@ -58,7 +57,7 @@ const good_order_partial_sell_asset_value =
 
 const good_order_partial_buy_ada_value =
   from_lovelace(
-    ( order_asset_amount - deal_amount_asset ) * order_price_per_unit + contract_order_min_ada,
+    ( order_asset_amount - deal_amount_asset ) * order_price_per_unit + contract_order_min_ada_amount,
   )
 
 const good_deal_ada_value_partial_exec =
@@ -75,6 +74,7 @@ const good_conf_datum =
     platform_fee_address: platform_address,
     contract_operator_keyhash: operator_payment_keyhash,
     listing_operator_keyhash: listing_operator_payment_keyhash,
+    contract_order_min_ada: contract_order_min_ada_amount,
     is_market_open: True,
   }
 
@@ -255,7 +255,7 @@ const good_buy_taker_output_full_exec =
     address: taker_address,
     value: good_order_full_ada_value
       |> merge(negate(platform_fee_full_exec_amount))
-      |> merge(negate(from_lovelace(contract_order_min_ada))),
+      |> merge(negate(from_lovelace(contract_order_min_ada_amount))),
   }
 
 const good_buy_order_output_partial_exec =

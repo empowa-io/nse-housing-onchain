@@ -107,7 +107,7 @@ validator exchange {
         let ref_utxos = tx_ref_inputs |> to_outputs()
         expect [contract_output, ..rest] = tx_outputs
 
-        expect [ConfigDatum { is_market_open, .. }] =
+        expect [ConfigDatum { is_market_open, contract_order_min_ada, .. }] =
           ref_utxos
             |> find_outputs_by_marker(config_marker, strict_mode: True)
             |> list.map(read_config_datum)
@@ -131,7 +131,9 @@ validator exchange {
             listing_data,
             tx_validity_range,
             expected_asset_amount: None,
+            contract_order_min_ada,
           )
+
         let only_one_contract_output =
           [] == ( rest |> find_outputs_by_address(contract_address) )
 
@@ -339,7 +341,7 @@ validator exchange {
         //     - a signature corresponding to the `order_maker_address` field in the contract output utxo datum
         let ref_utxos = tx_ref_inputs |> to_outputs()
 
-        expect [ConfigDatum { is_market_open, .. }] =
+        expect [ConfigDatum { is_market_open, contract_order_min_ada, .. }] =
           ref_utxos
             |> find_outputs_by_marker(config_marker, strict_mode: True)
             |> list.map(read_config_datum)
@@ -376,6 +378,7 @@ validator exchange {
             listing_data,
             tx_validity_range,
             expected_asset_amount: None,
+            contract_order_min_ada,
           )
         let only_one_contract_output =
           [] == ( rest |> find_outputs_by_address(contract_address) )

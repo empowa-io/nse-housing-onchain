@@ -9,9 +9,10 @@ use config.{
 }
 use default.{
   base_platform_fee_decimal_part, base_platform_fee_min_amount,
-  base_platform_fee_percent, config_marker, contract_address, contract_policy_id,
-  input_placeholder, listing_operator_payment_keyhash, operator_payment_keyhash,
-  output_placeholder, platform_address, utxo_ref_bootstrap,
+  base_platform_fee_percent, config_marker, contract_address,
+  contract_order_min_ada_amount, contract_policy_id, input_placeholder,
+  listing_operator_payment_keyhash, operator_payment_keyhash, output_placeholder,
+  platform_address, utxo_ref_bootstrap,
 }
 use nse_housing
 use types.{Bootstrap, ConfigDatum}
@@ -24,6 +25,7 @@ const good_conf_datum =
     platform_fee_address: platform_address,
     contract_operator_keyhash: operator_payment_keyhash,
     listing_operator_keyhash: listing_operator_payment_keyhash,
+    contract_order_min_ada: contract_order_min_ada_amount,
     is_market_open: False,
   }
 

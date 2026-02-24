@@ -19,7 +19,6 @@ source = "github"
 contract_config_marker = "CNF"
 contract_order_marker = "ORD"
 contract_listing_marker = "LST"
-contract_order_min_ada = 2_000_000
 contract_bootstrap_utxo_index = 0
 
 [config.default.contract_bootstrap_utxo_hash]
@@ -31,7 +30,6 @@ encoding = "hex"
 contract_config_marker = "CNF"
 contract_order_marker = "ORD"
 contract_listing_marker = "LST"
-contract_order_min_ada = 2_000_000
 contract_bootstrap_utxo_index = 0
 
 [config.mainnet.contract_bootstrap_utxo_hash]

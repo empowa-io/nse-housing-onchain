@@ -7,10 +7,10 @@ use cardano/transaction.{
 use config.{contract_config_marker}
 use default.{
   base_platform_fee_decimal_part, base_platform_fee_min_amount,
-  base_platform_fee_percent, contract_address, contract_policy_id,
-  input_placeholder, listing_marker, listing_operator_payment_keyhash,
-  operator_payment_keyhash, output_placeholder, platform_address, taker_address,
-  taker_payment_keyhash,
+  base_platform_fee_percent, contract_address, contract_order_min_ada_amount,
+  contract_policy_id, input_placeholder, listing_marker,
+  listing_operator_payment_keyhash, operator_payment_keyhash, output_placeholder,
+  platform_address, taker_address, taker_payment_keyhash,
 }
 use nse_housing
 use types.{ConfigDatum, Delisting, ListingDatum}
@@ -27,6 +27,7 @@ const good_conf_datum =
     platform_fee_address: platform_address,
     contract_operator_keyhash: operator_payment_keyhash,
     listing_operator_keyhash: listing_operator_payment_keyhash,
+    contract_order_min_ada: contract_order_min_ada_amount,
     is_market_open: True,
   }
 

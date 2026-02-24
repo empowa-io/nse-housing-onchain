@@ -5,7 +5,8 @@ use cardano/transaction.{
 }
 use default.{
   base_platform_fee_decimal_part, base_platform_fee_min_amount,
-  base_platform_fee_percent, config_marker, contract_address, input_placeholder,
+  base_platform_fee_percent, config_marker, contract_address,
+  contract_order_min_ada_amount, input_placeholder,
   listing_operator_payment_keyhash, operator_payment_keyhash, output_placeholder,
   platform_address, utxo_ref_contract,
 }
@@ -24,6 +25,7 @@ const good_conf_datum_old =
     platform_fee_address: platform_address,
     contract_operator_keyhash: operator_payment_keyhash,
     listing_operator_keyhash: listing_operator_payment_keyhash,
+    contract_order_min_ada: contract_order_min_ada_amount,
     is_market_open: False,
   }
 
@@ -35,6 +37,7 @@ const good_conf_datum_new =
     platform_fee_address: platform_address,
     contract_operator_keyhash: operator_keyhash_new,
     listing_operator_keyhash: listing_operator_payment_keyhash_new,
+    contract_order_min_ada: contract_order_min_ada_amount,
     is_market_open: True,
   }
 

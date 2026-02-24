@@ -4,10 +4,7 @@ use aiken/math.{max}
 use cardano/address.{Address, Script}
 use cardano/assets.{lovelace_of, policies, quantity_of, zero}
 use cardano/transaction.{Input, Output, OutputReference, Transaction}
-use config.{
-  contract_bootstrap_utxo_hash, contract_bootstrap_utxo_index,
-  contract_order_min_ada,
-}
+use config.{contract_bootstrap_utxo_hash, contract_bootstrap_utxo_index}
 use helpers.{
   calc_fee, find_outputs_by_address, read_config_datum, read_listing_datum,
   read_order_datum, to_outputs, validate_asset_listing, validate_authorization,
@@ -213,6 +210,7 @@ pub fn validate_deal(
     platform_fee_decimal,
     platform_fee_min_amount,
     platform_fee_address,
+    contract_order_min_ada,
     ..
   } = config
 
@@ -317,6 +315,7 @@ pub fn validate_deal(
           listing,
           tx_validity_range,
           Some(traded_asset_amount_init - deal_amount),
+          contract_order_min_ada,
         )
       // Then check that the updated order datum has no changes except the asset amount
       let is_new_order_datum_not_corrupted = {

@@ -25,6 +25,7 @@ pub type ConfigDatum {
   platform_fee_address: Address,
   contract_operator_keyhash: VerificationKeyHash,
   listing_operator_keyhash: VerificationKeyHash,
+  contract_order_min_ada: Int,
   is_market_open: Bool,
 }
 

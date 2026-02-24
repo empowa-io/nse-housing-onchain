@@ -13,7 +13,6 @@ use cardano/transaction.{
 }
 use config.{
   contract_config_marker, contract_listing_marker, contract_order_marker,
-  contract_order_min_ada,
 }
 use types.{
   Buy, ConfigDatum, ListingDatum, Marker, OrderDatum, OutputRefOrPolicyId, Sell,
@@ -204,6 +203,7 @@ pub fn validate_order_output(
   listing_data: ListingDatum,
   tx_validity_range: Interval,
   expected_asset_amount: Option<Int>,
+  contract_order_min_ada: Int,
 ) -> Bool {
   let Marker(contract_policy_id, order_marker_asset_name) = order_marker
   let Output { value: order_value, .. } = order_output

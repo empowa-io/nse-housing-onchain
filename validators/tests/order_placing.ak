@@ -4,15 +4,14 @@ use cardano/transaction.{
   InlineDatum, Input, NoDatum, Output, Transaction,
   placeholder as tx_placeholder,
 }
-use config.{
-  contract_config_marker, contract_order_marker, contract_order_min_ada,
-}
+use config.{contract_config_marker, contract_order_marker}
 use default.{
   base_platform_fee_decimal_part, base_platform_fee_min_amount,
-  base_platform_fee_percent, contract_address, contract_policy_id,
-  input_placeholder, listing_marker, listing_operator_payment_keyhash,
-  maker_address, maker_payment_keyhash, operator_payment_keyhash, order_marker,
-  output_placeholder, platform_address, taker_address,
+  base_platform_fee_percent, contract_address, contract_order_min_ada_amount,
+  contract_policy_id, input_placeholder, listing_marker,
+  listing_operator_payment_keyhash, maker_address, maker_payment_keyhash,
+  operator_payment_keyhash, order_marker, output_placeholder, platform_address,
+  taker_address,
 }
 use nse_housing
 use types.{Buy, ConfigDatum, ListingDatum, OrderDatum, OrderPlacing, Sell}
@@ -35,6 +34,7 @@ const good_conf_datum =
     platform_fee_address: platform_address,
     contract_operator_keyhash: operator_payment_keyhash,
     listing_operator_keyhash: listing_operator_payment_keyhash,
+    contract_order_min_ada: contract_order_min_ada_amount,
     is_market_open: True,
   }
 
@@ -122,7 +122,7 @@ const good_buy_order_datum =
 const good_order_subject =
   from_asset(approved_policy_id, approved_asset_name, order_asset_amount)
 
-const good_order_ada = from_lovelace(contract_order_min_ada)
+const good_order_ada = from_lovelace(contract_order_min_ada_amount)
 
 const good_sell_order_output =
   Output {
@@ -141,7 +141,7 @@ const good_buy_order_output =
     value: order_marker
       |> merge(
           from_lovelace(
-            order_asset_amount * order_price_per_unit + contract_order_min_ada,
+            order_asset_amount * order_price_per_unit + contract_order_min_ada_amount,
           ),
         ),
   }
@@ -264,7 +264,7 @@ test fail_bad_order_configuration() fail {
     Output {
       ..good_buy_order_output,
       value: order_marker
-        |> merge(from_lovelace(contract_order_min_ada)),
+        |> merge(from_lovelace(contract_order_min_ada_amount)),
       datum: InlineDatum(
         OrderDatum { ..good_buy_order_datum, traded_asset_amount: 0 },
       ),
@@ -711,7 +711,7 @@ test failed_bad_buy_order_output_not_enough_locked_ada() fail {
         |> merge(good_order_subject)
         |> merge(
             from_lovelace(
-              ( order_asset_amount - 1 ) * order_price_per_unit + contract_order_min_ada,
+              ( order_asset_amount - 1 ) * order_price_per_unit + contract_order_min_ada_amount,
             ),
           ),
     }
@@ -744,7 +744,7 @@ test failed_bad_buy_order_output_extra_ada() fail {
         |> merge(good_order_subject)
         |> merge(
             from_lovelace(
-              ( order_asset_amount + 1 ) * order_price_per_unit + contract_order_min_ada,
+              ( order_asset_amount + 1 ) * order_price_per_unit + contract_order_min_ada_amount,
             ),
           ),
     }

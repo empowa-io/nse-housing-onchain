@@ -4,14 +4,14 @@ use cardano/assets.{from_asset, from_lovelace, merge, negate}
 use cardano/transaction.{
   InlineDatum, Input, Output, Transaction, placeholder as tx_placeholder,
 }
-use config.{contract_config_marker, contract_order_min_ada}
+use config.{contract_config_marker}
 use default.{
   base_platform_fee_decimal_part, base_platform_fee_min_amount,
-  base_platform_fee_percent, config_marker, contract_address, contract_policy_id,
-  input_placeholder, listing_operator_payment_keyhash, maker_address,
-  maker_payment_cred, maker_payment_keyhash, operator_payment_keyhash,
-  order_marker, output_placeholder, platform_address, taker_address,
-  taker_payment_keyhash,
+  base_platform_fee_percent, config_marker, contract_address,
+  contract_order_min_ada_amount, contract_policy_id, input_placeholder,
+  listing_operator_payment_keyhash, maker_address, maker_payment_cred,
+  maker_payment_keyhash, operator_payment_keyhash, order_marker,
+  output_placeholder, platform_address, taker_address, taker_payment_keyhash,
 }
 use nse_housing
 use types.{ConfigDatum, OrderCanceling, OrderDatum, Sell}
@@ -36,6 +36,7 @@ const conf_datum =
     platform_fee_address: platform_address,
     contract_operator_keyhash: operator_payment_keyhash,
     listing_operator_keyhash: listing_operator_payment_keyhash,
+    contract_order_min_ada: contract_order_min_ada_amount,
     is_market_open: True,
   }
 
@@ -65,7 +66,7 @@ const good_sell_order_datum_with_timeout =
 const order_subject =
   from_asset(approved_policy_id, approved_asset_name, order_asset_amount)
 
-const order_ada = from_lovelace(contract_order_min_ada)
+const order_ada = from_lovelace(contract_order_min_ada_amount)
 
 const sell_order_input =
   Input {
@@ -92,7 +93,7 @@ const good_maker_buy_output =
   Output {
     ..good_maker_output,
     value: from_lovelace(
-      order_asset_amount * order_price_per_unit + contract_order_min_ada,
+      order_asset_amount * order_price_per_unit + contract_order_min_ada_amount,
     ),
   }
 

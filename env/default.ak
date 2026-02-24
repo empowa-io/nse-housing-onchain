@@ -6,6 +6,8 @@ use config.{
   contract_config_marker, contract_listing_marker, contract_order_marker,
 }
 
+pub const contract_order_min_ada_amount = 2000000
+
 // A set of constants defined here to simplify writing tests
 pub const utxo_ref_placeholder = OutputReference("any", 0)
 
