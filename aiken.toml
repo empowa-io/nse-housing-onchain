@@ -33,5 +33,5 @@ contract_listing_marker = "LST"
 contract_bootstrap_utxo_index = 0
 
 [config.mainnet.contract_bootstrap_utxo_hash]
-bytes = "94a8c6dd914997d05bc03ec3d550d84ca8b4b9ed965da0f67e31663c"
+bytes = "fadca3f5fe3ab32a1f5129398ea74658f6661e6ec5b8e5538ac15074fc188e73"
 encoding = "hex"
